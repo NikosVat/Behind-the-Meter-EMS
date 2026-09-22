@@ -209,6 +209,7 @@ class TelemetryGenerator:
         }
 
         payload = TelemetryPayload(
+            power_measurement_method="simulated",
             device_id=self.device_id,
             facility_id=self.facility_id,
             timestamp=timestamp,

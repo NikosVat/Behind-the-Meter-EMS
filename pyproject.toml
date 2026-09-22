@@ -17,6 +17,10 @@ dependencies = [
     "httpx>=0.27.0",
     "click>=8.1.0",
     "rich>=13.0.0",
+    "numpy>=1.23.0",
+    "scipy>=1.9.0",
+    "beautifulsoup4>=4.12.0",
+    "tzdata>=2024.1; sys_platform == 'win32'",
 ]
 
 [project.optional-dependencies]
@@ -27,8 +31,11 @@ dev = [
 
 [tool.setuptools.packages.find]
 where = ["."]
-include = ["backend*", "bot*", "simulator*", "tariff_engine*"]
+include = ["backend*", "bot*", "simulator*", "tariff_engine*", "optimization_engine*", "calibration*"]
 exclude = ["tests*", "firmware*", "docs*", "scripts*"]
+
+[tool.setuptools.package-data]
+backend = ["templates/*.html"]
 
 [tool.pytest.ini_options]
 minversion = "8.0"

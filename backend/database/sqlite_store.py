@@ -209,6 +209,9 @@ class SQLiteStore:
     def _create_schema(self, conn: sqlite3.Connection) -> None:
         """Initialize database schema tables and indices."""
         conn.executescript(SCHEMA_SQL)
+        columns = {row[1] for row in conn.execute("PRAGMA table_info(telemetry_readings)")}
+        if "power_measurement_method" not in columns:
+            conn.execute("ALTER TABLE telemetry_readings ADD COLUMN power_measurement_method TEXT NOT NULL DEFAULT 'unknown'")
         try:
             conn.execute("ALTER TABLE facility_configs ADD COLUMN viber_receiver_id TEXT;")
         except Exception:
@@ -354,6 +357,7 @@ class SQLiteStore:
             The inserted telemetry reading ID.
         """
         if isinstance(payload, TelemetryPayload):
+            measurement_method = payload.power_measurement_method
             device_id = payload.device_id
             facility_id = payload.facility_id
             ts = payload.timestamp
@@ -370,6 +374,7 @@ class SQLiteStore:
             }
         else:
             device_id = str(payload["device_id"])
+            measurement_method = str(payload.get("power_measurement_method", "unknown"))
             facility_id = str(payload["facility_id"])
             ts = payload["timestamp"]
             p_tot = float(payload["total_active_power_kw"])
@@ -425,8 +430,8 @@ class SQLiteStore:
                     total_apparent_power_kva, system_power_factor, cumulative_energy_kwh,
                     grid_frequency_hz, wifi_rssi_dbm, phases_json, running_cost_eur_per_h,
                     current_rate_eur_per_kwh, incremental_cost_eur, is_peak_window,
-                    is_excess_breach, projected_penalty_eur
-                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?);
+                    is_excess_breach, projected_penalty_eur, power_measurement_method
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?);
                 """,
                 (
                     device_id,
@@ -445,6 +450,7 @@ class SQLiteStore:
                     is_peak,
                     is_excess,
                     projected_penalty,
+                    measurement_method,
                 ),
             )
             reading_id = cursor.lastrowid
@@ -496,6 +502,34 @@ class SQLiteStore:
             )
 
             return reading_id
+
+    def get_telemetry_interval(self, facility_id: str, start_id: int, end_id: int) -> list[dict[str, Any]]:
+        """Resolve stored interval endpoints and all samples from the same meter.
+
+        Use SQLite date conversion so equivalent ISO offsets compare chronologically.
+        Counters must not reset within an interval used for energy verification.
+        """
+        with self.connection() as conn:
+            endpoints = [conn.execute(
+                "SELECT * FROM telemetry_readings WHERE id = ? AND facility_id = ?",
+                (reading_id, facility_id)).fetchone() for reading_id in (start_id, end_id)]
+            if any(row is None for row in endpoints):
+                raise ValueError("Interval readings not found for this facility")
+            start, end = endpoints
+            if start["device_id"] != end["device_id"]:
+                raise ValueError("Interval endpoints must belong to the same device")
+            rows = conn.execute(
+                "SELECT * FROM telemetry_readings WHERE facility_id = ? AND device_id = ? "
+                "AND julianday(timestamp) BETWEEN julianday(?) AND julianday(?) "
+                "ORDER BY julianday(timestamp), id",
+                (facility_id, start["device_id"], start["timestamp"], end["timestamp"])).fetchall()
+            # Endpoints must identify an unambiguous, chronological interval.
+            if len(rows) < 2 or rows[0]["id"] != start_id or rows[-1]["id"] != end_id:
+                raise ValueError("Interval must have distinct chronological endpoints")
+            for previous, current in zip(rows, rows[1:]):
+                if current["cumulative_energy_kwh"] < previous["cumulative_energy_kwh"]:
+                    raise ValueError("Energy counter reset within verification interval")
+            return [dict(row) for row in rows]
 
     def get_latest_telemetry(self, facility_id: str) -> dict[str, Any] | None:
         """Fetch the most recent telemetry record for a facility."""

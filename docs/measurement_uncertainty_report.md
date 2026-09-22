@@ -1,8 +1,11 @@
 # Behind-the-Meter EMS - Measurement Uncertainty & Hardware Calibration Report
 
-**Audit Timestamp:** 2026-09-18 15:04:12 UTC  
-**Compliance Standards:** ISO/IEC Guide 98-3 (GUM), IEC 62053-22 Class 0.5S  
-**Hardware Target:** ESP32 SAR ADC + SCT-013 Split-Core Current Transformers (2000:1)  
+
+**Evidence scope:** These results are simulated, not captured calibration measurements or certification. The deployed CT-only firmware assumes voltage and power factor; the figures below do not establish its real active-power accuracy.
+
+**Audit Timestamp:** 2026-09-18 15:04:12 UTC
+**Compliance Standards:** ISO/IEC Guide 98-3 (GUM), IEC 62053-22 Class 0.5S
+**Hardware Target:** ESP32 SAR ADC + SCT-013 Split-Core Current Transformers (2000:1)
 
 ---
 
@@ -82,6 +85,6 @@ $$V_{\text{midpoint}}[n] = (1 - \alpha) V_{\text{midpoint}}[n-1] + \alpha V_{\te
 
 ---
 
-**Audit Status:** `PASSED - 100% COMPLIANT`  
-**Max Residual Current Error:** `0.30%` (Budget < 1.50%)  
-**Max Residual Power Error:** `0.20%` (Budget < 1.50%)  
+**Audit Status:** `PASSED - 100% COMPLIANT`
+**Max Residual Current Error:** `0.30%` (Budget < 1.50%)
+**Max Residual Power Error:** `0.20%` (Budget < 1.50%)

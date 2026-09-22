@@ -252,7 +252,7 @@ class TestDecisionSupportAndClosedLoop:
         assert rec.estimated_savings_eur > 0.0
         assert "Μετατόπιση απόψυξης" in rec.description_el
         assert "Shift defrost cycle" in rec.description_en
-        assert 0.80 <= rec.confidence_score <= 1.0
+        assert rec.confidence_score is None
 
     def test_closed_loop_verification_success(self):
         """Verify successful post-intervention audit when actual load avoided matches target."""
@@ -281,6 +281,7 @@ class TestDecisionSupportAndClosedLoop:
             actual_measured_kw=28.0,
             counterfactual_baseline_kw=34.0,
             tariff_eur_kwh=0.25,
+            duration_hours=1.0,
         )
 
         assert record.status == VerificationStatus.SUCCESS
@@ -315,6 +316,7 @@ class TestDecisionSupportAndClosedLoop:
             actual_measured_kw=33.5,
             counterfactual_baseline_kw=34.0,
             tariff_eur_kwh=0.25,
+            duration_hours=1.0,
         )
 
         assert record.status == VerificationStatus.FAILED
@@ -361,7 +363,7 @@ class TestOptimizationRESTEndpoints:
         assert "recommendations" in data
         assert len(data["recommendations"]) > 0
 
-    def test_get_recommendations_and_post_verify(self, client):
+    def test_get_recommendations_and_post_verify(self, client, valid_telemetry_dict):
         """Verify recommendation query and post-intervention telemetry verification."""
         # 1. Trigger solve to populate recommendations
         solve_resp = client.post("/api/v1/optimization/solve", json={"contracted_capacity_kw": 30.0})
@@ -375,10 +377,18 @@ class TestOptimizationRESTEndpoints:
         assert get_resp.status_code == 200
         assert len(get_resp.json()) >= 1
 
-        # 3. Post verification
+        # 3. Record an interval: 6 kWh over 15 minutes = 24 kW average.
+        from backend.database.sqlite_store import get_store
+        store = get_store(client.app.state.db_path)
+        valid_telemetry_dict.update(facility_id=first_rec["facility_id"], timestamp="2026-09-22T10:00:00+00:00", cumulative_energy_kwh=100)
+        start_id = store.store_telemetry(valid_telemetry_dict)
+        valid_telemetry_dict.update(timestamp="2026-09-22T10:15:00+00:00", cumulative_energy_kwh=106)
+        end_id = store.store_telemetry(valid_telemetry_dict)
+        # 4. Post verification
         ver_payload = {
             "recommendation_id": first_rec["recommendation_id"],
-            "actual_measured_kw": 24.0,
+            "start_reading_id": start_id,
+            "end_reading_id": end_id,
             "counterfactual_baseline_kw": 32.0,
             "tariff_eur_kwh": 0.22,
         }
@@ -387,12 +397,18 @@ class TestOptimizationRESTEndpoints:
         ver_data = ver_resp.json()
         assert ver_data["status"] in ["success", "partial", "failed"]
         assert ver_data["actual_load_avoided_kw"] == 8.0
+        assert ver_data["duration_hours"] == .25
+        assert ver_data["actual_savings_eur"] == .44
+        assert ver_data["evidence_source"] == "stored_telemetry"
+        assert ver_data["is_certified"] is False
 
     def test_post_verify_404_on_unknown_id(self, client):
         """POST /api/v1/optimization/verify with non-existent ID must return 404 Not Found."""
         ver_payload = {
             "recommendation_id": "non_existent_rec_9999",
-            "actual_measured_kw": 24.0,
+            "start_reading_id": 1,
+            "end_reading_id": 2,
+            "tariff_eur_kwh": .22,
             "counterfactual_baseline_kw": 32.0,
         }
         resp = client.post("/api/v1/optimization/verify", json=ver_payload)

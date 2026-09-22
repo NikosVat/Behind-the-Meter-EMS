@@ -162,6 +162,8 @@ class ScheduleResult:
     hvac_temperatures: Dict[str, List[float]] = field(default_factory=dict)
     bess_soc_history: List[float] = field(default_factory=list)
     solve_time_ms: float = 0.0
+    operationally_feasible: bool = True
+    comfort_violation_c: float = 0.0
 
 
 # --- Decision Support & Closed-Loop Verification Models ---
@@ -182,7 +184,8 @@ class ActionRecommendation(BaseModel):
     recommended_window: str
     peak_load_avoided_kw: float
     estimated_savings_eur: float
-    confidence_score: float = Field(ge=0.0, le=1.0)
+    confidence_score: Optional[float] = Field(default=None, ge=0.0, le=1.0,
+                                             description="Unknown until calibrated against observed outcomes")
     contracted_capacity_kw: float
     projected_peak_kw: float
 
@@ -199,6 +202,14 @@ class VerificationRecord(BaseModel):
     actual_load_avoided_kw: float
     estimated_savings_eur: float
     actual_savings_eur: float
-    accuracy_pct: float
+    accuracy_pct: Optional[float] = None
     summary_el: str
     summary_en: str
+    duration_hours: float = Field(gt=0, allow_inf_nan=False)
+    is_certified: bool = False
+    evidence_source: str = "caller_supplied"
+    baseline_source: str = "caller_supplied_counterfactual"
+    valuation_scope: str = "interval_energy_only; excludes demand charges and shifted-load rebound"
+    power_measurement_method: str = "unknown"
+    start_reading_id: Optional[int] = None
+    end_reading_id: Optional[int] = None

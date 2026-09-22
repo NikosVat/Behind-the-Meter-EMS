@@ -53,6 +53,7 @@ def get_database_store(request: Request) -> SQLiteStore:
 # --- Ingestion Response Schema ---
 
 class IngestionResponse(BaseModel):
+    power_measurement_method: str = "unknown"
     status: str = "success"
     reading_id: int
     facility_id: str
@@ -169,6 +170,7 @@ async def ingest_telemetry(
     alert_event = await dispatcher.process_telemetry(payload, cost_res, facility_config)
 
     return IngestionResponse(
+        power_measurement_method=payload.power_measurement_method,
         status="success",
         reading_id=reading_id,
         facility_id=payload.facility_id,

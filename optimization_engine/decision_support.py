@@ -13,6 +13,7 @@ Components:
 from __future__ import annotations
 
 import uuid
+import math
 from datetime import datetime, timezone
 from typing import Dict, List, Optional
 
@@ -46,7 +47,7 @@ class DecisionSupportEngine:
         """Analyze optimization schedule and generate human-interpretable action cards."""
         recommendations: List[ActionRecommendation] = []
 
-        if not schedule.is_optimal:
+        if not schedule.is_optimal or not schedule.operationally_feasible:
             return recommendations
 
         # 1. Defrost Shift Recommendations
@@ -162,7 +163,7 @@ class DecisionSupportEngine:
             recommended_window=opt_w,
             peak_load_avoided_kw=defrost.power_kw,
             estimated_savings_eur=total_savings,
-            confidence_score=0.94,
+            confidence_score=None,
             contracted_capacity_kw=problem.contracted_capacity_kw,
             projected_peak_kw=schedule.peak_optimized_kw,
         )
@@ -244,7 +245,7 @@ class DecisionSupportEngine:
             recommended_window=opt_w,
             peak_load_avoided_kw=batch.power_kw,
             estimated_savings_eur=total_savings,
-            confidence_score=0.91,
+            confidence_score=None,
             contracted_capacity_kw=problem.contracted_capacity_kw,
             projected_peak_kw=schedule.peak_optimized_kw,
         )
@@ -318,7 +319,7 @@ class DecisionSupportEngine:
             recommended_window=precool_window,
             peak_load_avoided_kw=avoided_kw,
             estimated_savings_eur=est_savings,
-            confidence_score=0.88,
+            confidence_score=None,
             contracted_capacity_kw=problem.contracted_capacity_kw,
             projected_peak_kw=schedule.peak_optimized_kw,
         )
@@ -373,14 +374,14 @@ class DecisionSupportEngine:
             recommended_window=f"Discharge {dis_window}",
             peak_load_avoided_kw=peak_dis_kw,
             estimated_savings_eur=est_savings,
-            confidence_score=0.96,
+            confidence_score=None,
             contracted_capacity_kw=problem.contracted_capacity_kw,
             projected_peak_kw=schedule.peak_optimized_kw,
         )
 
 
 class ClosedLoopVerifier:
-    """Certifies operational interventions against real post-intervention telemetry."""
+    """Compares interval load against an assumed counterfactual without certifying savings."""
 
     def __init__(self, tolerance_pct: float = 20.0):
         self.tolerance_pct = tolerance_pct
@@ -391,60 +392,59 @@ class ClosedLoopVerifier:
         actual_measured_kw: float,
         counterfactual_baseline_kw: float,
         tariff_eur_kwh: float,
-        capacity_penalty_rate: float = 18.50,
+        *,
+        duration_hours: float,
     ) -> VerificationRecord:
         """Audit measured power telemetry against counterfactual baseline."""
         actual_avoided_kw = round(max(0.0, counterfactual_baseline_kw - actual_measured_kw), 2)
         
-        # Financial valuation
-        energy_savings = actual_avoided_kw * tariff_eur_kwh
-        surcharge_savings = 0.0
-        if counterfactual_baseline_kw > recommendation.contracted_capacity_kw:
-            excess_base = counterfactual_baseline_kw - recommendation.contracted_capacity_kw
-            excess_actual = max(0.0, actual_measured_kw - recommendation.contracted_capacity_kw)
-            surcharge_savings = (excess_base - excess_actual) * capacity_penalty_rate
-
-        actual_savings_eur = round(max(0.0, energy_savings + surcharge_savings), 2)
+        if not all(math.isfinite(v) for v in (actual_measured_kw, counterfactual_baseline_kw, tariff_eur_kwh, duration_hours)) or duration_hours <= 0:
+            raise ValueError("Finite inputs and a positive duration_hours are required")
+        # A short interval cannot establish avoided billing-period demand charges.
+        # Preserve negative energy value when load increases or tariffs are negative.
+        energy_savings = (counterfactual_baseline_kw - actual_measured_kw) * tariff_eur_kwh * duration_hours
+        actual_savings_eur = round(energy_savings, 2)
 
         est_savings = recommendation.estimated_savings_eur
-        accuracy_pct = round((actual_savings_eur / est_savings * 100.0) if est_savings > 0 else 100.0, 1)
+        # Interval energy and whole-recommendation savings have different scopes.
+        accuracy_pct = None
 
         # Status classification
-        if actual_avoided_kw >= recommendation.peak_load_avoided_kw * 0.80:
+        if actual_avoided_kw >= recommendation.peak_load_avoided_kw * (1 - self.tolerance_pct / 100):
             status = VerificationStatus.SUCCESS
             summary_el = (
                 f"Επιτυχής παρέμβαση: Επιτεύχθηκε μείωση {actual_avoided_kw:.1f} kW "
                 f"(στόχος {recommendation.peak_load_avoided_kw:.1f} kW). "
-                f"Πραγματικό οικονομικό όφελος: €{actual_savings_eur:.2f} (ακρίβεια {accuracy_pct:.1f}%)."
+                f"Εκτιμώμενο ενεργειακό όφελος διαστήματος: €{actual_savings_eur:.2f}."
             )
             summary_en = (
-                f"Intervention certified: Achieved {actual_avoided_kw:.1f} kW reduction "
+                f"Interval comparison: Achieved {actual_avoided_kw:.1f} kW reduction "
                 f"(target {recommendation.peak_load_avoided_kw:.1f} kW). "
-                f"Actual verified savings: €{actual_savings_eur:.2f} (accuracy {accuracy_pct:.1f}%)."
+                f"Estimated interval energy savings: €{actual_savings_eur:.2f}."
             )
         elif actual_avoided_kw >= recommendation.peak_load_avoided_kw * 0.40:
             status = VerificationStatus.PARTIAL
             summary_el = (
                 f"Μερική επιτυχία: Επιτεύχθηκε μείωση {actual_avoided_kw:.1f} kW "
                 f"(στόχος {recommendation.peak_load_avoided_kw:.1f} kW). "
-                f"Πραγματική εξοικονόμηση: €{actual_savings_eur:.2f} ({accuracy_pct:.1f}% στόχου)."
+                f"Εκτιμώμενο ενεργειακό όφελος διαστήματος: €{actual_savings_eur:.2f}."
             )
             summary_en = (
                 f"Partial intervention: Achieved {actual_avoided_kw:.1f} kW reduction "
                 f"(target {recommendation.peak_load_avoided_kw:.1f} kW). "
-                f"Verified savings: €{actual_savings_eur:.2f} ({accuracy_pct:.1f}% of target)."
+                f"Estimated interval energy savings: €{actual_savings_eur:.2f}."
             )
         else:
             status = VerificationStatus.FAILED
             summary_el = (
                 f"Απόκλιση στόχου: Το μετρηθέν φορτίο ({actual_measured_kw:.1f} kW) "
                 f"δεν παρουσίασε την αναμενόμενη μείωση ({recommendation.peak_load_avoided_kw:.1f} kW). "
-                f"Πραγματικό όφελος: €{actual_savings_eur:.2f}."
+                f"Εκτιμώμενο ενεργειακό όφελος διαστήματος: €{actual_savings_eur:.2f}."
             )
             summary_en = (
                 f"Target variance: Measured load ({actual_measured_kw:.1f} kW) "
                 f"did not achieve target reduction ({recommendation.peak_load_avoided_kw:.1f} kW). "
-                f"Verified savings: €{actual_savings_eur:.2f}."
+                f"Estimated interval energy savings: €{actual_savings_eur:.2f}."
             )
 
         return VerificationRecord(
@@ -459,6 +459,7 @@ class ClosedLoopVerifier:
             estimated_savings_eur=est_savings,
             actual_savings_eur=actual_savings_eur,
             accuracy_pct=accuracy_pct,
+            duration_hours=duration_hours,
             summary_el=summary_el,
             summary_en=summary_en,
         )

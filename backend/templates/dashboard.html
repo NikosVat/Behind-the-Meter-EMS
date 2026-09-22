@@ -124,6 +124,7 @@
           <span id="totalPowerKw" class="text-3xl font-extrabold text-white tracking-tight">0.00</span>
           <span class="text-slate-400 font-semibold text-sm">kW</span>
         </div>
+        <div id="powerMeasurementMethod" class="text-xs text-amber-300 mt-2">Power measurement source unknown</div>
         <div class="mt-3 flex items-center justify-between text-xs text-slate-400 border-t border-slate-800/60 pt-2.5">
           <span>Όριο Αιχμής:</span>
           <span id="peakThresholdDisplay" class="font-mono font-semibold text-slate-200">22.0 kW</span>
@@ -463,6 +464,13 @@
         document.getElementById('todaySpendEur').textContent = data.cost_today_eur.toFixed(2);
         document.getElementById('todayKwh').textContent = data.kwh_today.toFixed(1) + ' kWh';
         document.getElementById('systemPf').textContent = data.system_power_factor.toFixed(2);
+        const measurementLabels = {
+          estimated_nominal_voltage_pf: 'Estimated power — assumed voltage and power factor',
+          meter_measured: 'Meter-reported power',
+          simulated: 'Simulated power',
+          unknown: 'Power measurement source unknown'
+        };
+        document.getElementById('powerMeasurementMethod').textContent = measurementLabels[data.power_measurement_method] || measurementLabels.unknown;
         document.getElementById('gridFreqDisplay').textContent = `${data.grid_frequency_hz.toFixed(1)} Hz | ${data.wifi_rssi_dbm} dBm`;
         document.getElementById('peakThresholdDisplay').textContent = `${data.peak_threshold_kw.toFixed(1)} kW`;
 

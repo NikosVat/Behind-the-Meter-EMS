@@ -11,8 +11,11 @@ Exposes:
 from __future__ import annotations
 
 from typing import Dict, List, Optional
-from fastapi import APIRouter, HTTPException, Query
-from pydantic import BaseModel, Field, field_validator
+from datetime import datetime
+from fastapi import APIRouter, HTTPException, Query, Depends
+from pydantic import BaseModel, ConfigDict, Field, field_validator
+from backend.database.sqlite_store import SQLiteStore
+from backend.routes.telemetry import get_database_store
 
 from optimization_engine.models import (
     ActionRecommendation,
@@ -59,11 +62,12 @@ class SolveRequest(BaseModel):
 
 
 class VerificationRequest(BaseModel):
+    model_config = ConfigDict(extra="forbid")
     recommendation_id: str
-    actual_measured_kw: float
-    counterfactual_baseline_kw: float
-    tariff_eur_kwh: float = 0.225
-    capacity_penalty_rate: float = 18.50
+    start_reading_id: int = Field(gt=0)
+    end_reading_id: int = Field(gt=0)
+    counterfactual_baseline_kw: float = Field(ge=0, allow_inf_nan=False)
+    tariff_eur_kwh: float = Field(allow_inf_nan=False)
 
 
 @router.get("/status")
@@ -134,6 +138,12 @@ def solve_schedule(req: SolveRequest):
     return {
         "status": res.status,
         "is_optimal": res.is_optimal,
+        "operationally_feasible": res.operationally_feasible,
+        "comfort_violation_c": res.comfort_violation_c,
+        "input_source": {
+            "baseline": "caller_supplied" if req.baseline_load_kw is not None else "demo_profile",
+            "tariff": "caller_supplied" if req.tariff_rates_eur_kwh is not None else "demo_profile",
+        },
         "horizon_hours": res.horizon_hours,
         "baseline_cost_eur": res.baseline_cost_eur,
         "optimized_cost_eur": res.optimized_cost_eur,
@@ -162,8 +172,8 @@ def get_recommendations(facility_id: Optional[str] = Query(None)):
 
 
 @router.post("/verify", response_model=VerificationRecord)
-def verify_intervention(req: VerificationRequest):
-    """Certify post-intervention telemetry against baseline counterfactual.
+def verify_intervention(req: VerificationRequest, store: SQLiteStore = Depends(get_database_store)):
+    """Compare recorded interval energy with an explicitly unvalidated counterfactual.
     
     Raises 404 if the recommendation_id is not found in the active registry.
     """
@@ -182,14 +192,33 @@ def verify_intervention(req: VerificationRequest):
             detail=f"Recommendation '{req.recommendation_id}' not found. Cannot verify non-existent intervention.",
         )
 
+    try:
+        readings = store.get_telemetry_interval(rec.facility_id, req.start_reading_id, req.end_reading_id)
+        first, last = readings[0], readings[-1]
+        start = datetime.fromisoformat(first["timestamp"].replace("Z", "+00:00"))
+        end = datetime.fromisoformat(last["timestamp"].replace("Z", "+00:00"))
+        if start.tzinfo is None or end.tzinfo is None:
+            raise ValueError("Verification requires timezone-aware timestamps")
+        duration = (end - start).total_seconds() / 3600
+        if duration <= 0:
+            raise ValueError("Verification interval must have positive duration")
+        actual_kw = (last["cumulative_energy_kwh"] - first["cumulative_energy_kwh"]) / duration
+    except ValueError as exc:
+        raise HTTPException(status_code=422, detail=str(exc)) from exc
+
     verifier = ClosedLoopVerifier()
     record = verifier.verify_intervention(
         recommendation=rec,
-        actual_measured_kw=req.actual_measured_kw,
+        actual_measured_kw=actual_kw,
         counterfactual_baseline_kw=req.counterfactual_baseline_kw,
         tariff_eur_kwh=req.tariff_eur_kwh,
-        capacity_penalty_rate=req.capacity_penalty_rate,
+        duration_hours=duration,
     )
+    record.evidence_source = "stored_telemetry"
+    methods = {row["power_measurement_method"] for row in readings}
+    record.power_measurement_method = methods.pop() if len(methods) == 1 else "mixed"
+    record.start_reading_id = req.start_reading_id
+    record.end_reading_id = req.end_reading_id
 
     _active_verifications.setdefault(rec.facility_id, []).append(record)
     return record

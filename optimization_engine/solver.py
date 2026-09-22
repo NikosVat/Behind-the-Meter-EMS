@@ -177,7 +177,7 @@ class ConstrainedLoadSolver:
                     integrality[s_idx] = 1
                     integrality[a_idx] = 1
                     lb[s_idx] = 0.0
-                    ub[s_idx] = 1.0 if (min_window <= t <= max_window) else 0.0
+                    ub[s_idx] = 1.0 if (min_window <= t <= max_window and t + d.duration_hours <= self.H) else 0.0
                     lb[a_idx] = 0.0
                     ub[a_idx] = 1.0
             else:
@@ -194,7 +194,7 @@ class ConstrainedLoadSolver:
                 integrality[s_idx] = 1
                 integrality[a_idx] = 1
                 lb[s_idx] = 0.0
-                ub[s_idx] = 1.0 if (b.earliest_start_hour <= t <= b.latest_start_hour) else 0.0
+                ub[s_idx] = 1.0 if (b.earliest_start_hour <= t <= b.latest_start_hour and t + b.duration_hours <= self.H) else 0.0
                 lb[a_idx] = 0.0
                 ub[a_idx] = 1.0
 
@@ -452,6 +452,7 @@ class ConstrainedLoadSolver:
             return ScheduleResult(
                 status=status_str,
                 is_optimal=False,
+                operationally_feasible=False,
                 horizon_hours=self.H,
                 baseline_total_load_kw=[round(x, 2) for x in baseline_load],
                 optimized_total_load_kw=[round(x, 2) for x in baseline_load],
@@ -523,9 +524,17 @@ class ConstrainedLoadSolver:
                 for t in range(self.H + 1)
             ]
 
+        # Numerical optimality of a relaxed problem does not imply acceptable comfort.
+        violation = max((max(h.temp_min_c - float(sol[var_map[f"hvac_temp_{j}_{t}"]]),
+                             float(sol[var_map[f"hvac_temp_{j}_{t}"]]) - h.temp_max_c, 0.0)
+                         for j, h in enumerate(self.problem.hvac_loads)
+                         for t in range(self.H + 1)), default=0.0)
+        comfort_ok = violation <= 1e-6
         return ScheduleResult(
-            status=status_str,
+            status=status_str if comfort_ok else "COMFORT_VIOLATION",
             is_optimal=True,
+            operationally_feasible=comfort_ok,
+            comfort_violation_c=round(violation, 6),
             horizon_hours=self.H,
             baseline_total_load_kw=[round(x, 2) for x in baseline_load],
             optimized_total_load_kw=[round(x, 2) for x in opt_load],

@@ -146,6 +146,8 @@ String TelemetryClient::serializePayloadJson(const SystemPowerSnapshot& snapshot
     doc["device_id"] = device_id_;
     doc["facility_id"] = facility_id_;
     doc["timestamp"] = timestamp_str;
+    // CT-only hardware measures current; voltage and PF are configured assumptions.
+    doc["power_measurement_method"] = "estimated_nominal_voltage_pf";
 
     // Phases dictionary
     JsonObject phases = doc.createNestedObject("phases");

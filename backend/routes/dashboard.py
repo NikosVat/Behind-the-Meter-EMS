@@ -39,6 +39,7 @@ class DashboardTimelinePoint(BaseModel):
 
 
 class DashboardMetricsResponse(BaseModel):
+    power_measurement_method: str = "unknown"
     facility_id: str
     facility_name: str
     facility_type: str
@@ -179,6 +180,7 @@ def get_dashboard_metrics(
         )
 
     return DashboardMetricsResponse(
+        power_measurement_method=latest.get("power_measurement_method", "unknown") if latest else "unknown",
         facility_id=str(config.get("facility_id", facility_id)),
         facility_name=str(config.get("name", config.get("facility_name", facility_id))),
         facility_type=str(config.get("facility_type", "commercial")),

@@ -5,7 +5,7 @@ frequency validity, and multi-phase balance.
 """
 
 from datetime import datetime
-from typing import Any
+from typing import Any, Literal
 
 from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
 
@@ -74,6 +74,9 @@ class TelemetryPayload(BaseModel):
     """
 
     model_config = ConfigDict(extra="forbid")
+
+    power_measurement_method: Literal["unknown", "estimated_nominal_voltage_pf", "meter_measured", "simulated"] = Field(
+        default="unknown", description="Source-reported provenance; not a calibration certificate")
 
     device_id: str = Field(
         ...,

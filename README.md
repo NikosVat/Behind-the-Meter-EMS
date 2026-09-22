@@ -6,12 +6,18 @@
 [![Regulatory Standard](https://img.shields.io/badge/Law-5068%2F2023-brightgreen.svg)](https://ypen.gov.gr)
 [![Safety Standard](https://img.shields.io/badge/Standard-ELOT%2060364-red.svg)](https://www.elot.gr)
 [![Bill Validation: 0.00% Error](https://img.shields.io/badge/Bill%20Audit-0.00%25%20Error%20(198%20lines)-success.svg)](docs/tariff_validation_report.md)
-[![Calibration: Class 0.5S](https://img.shields.io/badge/Hardware%20Accuracy-%3C1.2%25%20Error%20(Class%200.5S)-blue.svg)](docs/measurement_uncertainty_report.md)
+[![Calibration: simulation model](https://img.shields.io/badge/Calibration-simulation%20model-blue.svg)](docs/measurement_uncertainty_report.md)
 [![Tests: 511 Passed](https://img.shields.io/badge/tests-511%20passed%20(100%25)-success.svg)](tests/)
 
-An experimentally validated, closed-loop Behind-the-Meter Energy Management System (EMS) engineered for **commercial SMBs** (artisanal bakeries, cold storage logistics, boutique hotels). The platform bridges low-cost IoT metering hardware (<50€ BOM) with mathematical mixed-integer linear programming (MILP), transforming energy management from passive monitoring into an autonomous optimization loop: **`Measure -> Predict -> Optimize -> Act -> Verify`**.
+A prototype closed-loop Behind-the-Meter Energy Management System (EMS) engineered for **commercial SMBs** (artisanal bakeries, cold storage logistics, boutique hotels). The platform bridges low-cost IoT metering hardware (<50€ BOM) with mathematical mixed-integer linear programming (MILP), transforming energy management from passive monitoring into an autonomous optimization loop: **`Measure -> Predict -> Optimize -> Act -> Verify`**.
 
 ---
+
+## Measurement and optimization limits
+
+The current CT-only firmware measures RMS current and **estimates power and energy using configured voltage and power factor**. It does not measure instantaneous voltage or power factor. Telemetry labels these readings `estimated_nominal_voltage_pf`; simulated and legacy/unknown readings are also distinguished. The calibration report is a simulation and does not certify physical hardware accuracy.
+
+Optimization defaults are demonstration load, weather and tariff profiles, not a trained forecast. Recommendations have `confidence_score: null` until calibrated. Comfort violations are explicit and suppress operational recommendations; mathematical optimality alone does not imply acceptable comfort. Verification compares stored energy intervals with an assumed counterfactual and does not certify total savings. See [API migration details](docs/api_reference.md) and [real forecasting data sources](docs/forecasting_data_sources.md).
 
 ## Executive Summary & Empirical Validation
 
@@ -36,7 +42,7 @@ This platform provides an autonomous decision-support and constrained load sched
 |    [ 4. ACT ]       -->  Actionable recommendations via Telegram, Viber & Web Dashboard            |
 |          |               (e.g., "Shift Defrost Rack A to 16:00 -> Avoids 6.8 kW peak, saves €14.20")|
 |          v                                                                                         |
-|    [ 5. VERIFY ]    -->  Post-intervention telemetry audit vs counterfactual baseline (certified €) |
+|    [ 5. VERIFY ]    -->  Post-intervention telemetry audit vs assumed counterfactual baseline (estimated €) |
 |                                                                                                    |
 +----------------------------------------------------------------------------------------------------+
 ```
@@ -45,10 +51,10 @@ This platform provides an autonomous decision-support and constrained load sched
 
 | Validation Dimension | Metric | Result | Benchmark Reference |
 |---|---|:---:|---|
-| **Peak Demand Curtailment** | Load Reduction in Peak Tariff Windows | **18.4%** | Verified on commercial SMB pilot profiles |
+| **Peak Demand Curtailment** | Load Reduction in Peak Tariff Windows | **18.4%** | Illustrative profile result; field validation not established here |
 | **Surcharge Avoidance** | Avoided Capacity Breaches & Spot Spikes | **€137 – €284 / mo** | DEDDIE capacity surcharge avoidance model |
 | **Tariff & Bill Calculation** | Line-Item Discrepancy across Utility Bills | **0.00%** | **198 / 198 line items** certified across 9 bills ([`docs/tariff_validation_report.md`](docs/tariff_validation_report.md)) |
-| **Hardware Measurement Uncertainty** | Current & Active Power Error | **< 0.35% (I) / < 0.20% (P)** | IEC 62053-22 Class 0.5S laboratory standard ([`docs/measurement_uncertainty_report.md`](docs/measurement_uncertainty_report.md)) |
+| **Hardware Measurement Uncertainty** | Current & Active Power Error | **< 0.35% (I) / < 0.20% (P)** | Simulation comparison, not hardware certification ([`docs/measurement_uncertainty_report.md`](docs/measurement_uncertainty_report.md)) |
 | **Expanded Uncertainty ($k=2$)** | 95% Confidence Interval Budget | **±1.35%** | ISO/IEC Guide 98-3 (GUM) error budget |
 | **MILP Optimization Latency** | 24-Hour Horizon Solve Time | **< 25 ms** | SciPy HiGHS solver (< 100 ms real-time ceiling) |
 | **Test Suite Coverage** | Passing Unit, Integration & E2E Tests | **511 / 511 (100%)** | 5.5s total execution time |
@@ -94,7 +100,7 @@ Subject to:
 ### Decision Support & Closed-Loop Verification
 
 - **Actionable Operational Guidance:** The solver output is translated into prioritized operational cards (`DecisionSupportEngine`) in Greek and English.
-- **Closed-Loop Telemetry Audit:** When an intervention is executed, post-intervention telemetry is evaluated against the counterfactual baseline (`ClosedLoopVerifier`) to certify actual avoided power and verified financial savings (`SUCCESS`, `PARTIAL`, `FAILED`).
+- **Closed-Loop Telemetry Audit:** When an intervention is executed, post-intervention telemetry is evaluated against the counterfactual baseline (`ClosedLoopVerifier`) to estimate interval load differences and energy value against an assumed counterfactual (`SUCCESS`, `PARTIAL`, `FAILED`).
 
 ---
 
