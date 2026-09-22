@@ -13,7 +13,6 @@ tailored for Greek commercial facilities (bakeries, cold storage, boutique hotel
 from __future__ import annotations
 
 from datetime import datetime, timezone
-from typing import Any
 
 
 def get_peak_window_str(dt: datetime | None = None) -> str:

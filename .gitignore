@@ -45,6 +45,7 @@ Thumbs.db
 .env.local
 *.pem
 *.key
+firmware/src/secrets.h
 
 # Internal agent working directory
 .agents/

@@ -127,6 +127,15 @@ class TelemetryPayload(BaseModel):
         ...,
         description="Wi-Fi received signal strength indicator [dBm]",
     )
+    predicted_next_kw: float | None = Field(
+        default=None,
+        ge=0.0,
+        description="On-device edge forecasted active power for next hour [kW]",
+    )
+    projected_peak_breach: bool | None = Field(
+        default=None,
+        description="Flag indicating if the on-device edge forecast predicts a contracted capacity breach",
+    )
 
     @field_validator("timestamp")
     @classmethod

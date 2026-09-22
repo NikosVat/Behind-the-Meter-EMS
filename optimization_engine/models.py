@@ -13,7 +13,7 @@ from __future__ import annotations
 from dataclasses import dataclass, field
 from datetime import datetime, timezone
 from enum import Enum
-from typing import Any, Dict, List, Optional
+
 from pydantic import BaseModel, Field
 
 
@@ -81,7 +81,7 @@ class HVACLoad:
     initial_temp_c: float = 22.0
     temp_min_c: float = 20.0
     temp_max_c: float = 24.5
-    ambient_temp_forecast: List[float] = field(default_factory=lambda: [
+    ambient_temp_forecast: list[float] = field(default_factory=lambda: [
         22.0, 21.5, 21.0, 20.5, 20.5, 21.0, 23.0, 25.0,
         28.0, 31.0, 33.5, 35.0, 36.0, 36.5, 35.5, 34.0,
         32.0, 30.0, 28.0, 26.5, 25.0, 24.0, 23.0, 22.5
@@ -131,14 +131,14 @@ class OptimizationProblem:
     """Complete 24-hour rolling horizon optimization problem specification."""
     horizon_hours: int = 24
     time_step_hours: float = 1.0
-    baseline_load_kw: List[float] = field(default_factory=lambda: [10.0] * 24)
-    tariff_rates_eur_kwh: List[float] = field(default_factory=lambda: [0.15] * 24)
+    baseline_load_kw: list[float] = field(default_factory=lambda: [10.0] * 24)
+    tariff_rates_eur_kwh: list[float] = field(default_factory=lambda: [0.15] * 24)
     contracted_capacity_kw: float = 35.0
     capacity_penalty_eur_per_kw: float = 18.50  # DEDDIE capacity excess demand surcharge
-    defrost_loads: List[DefrostLoad] = field(default_factory=list)
-    hvac_loads: List[HVACLoad] = field(default_factory=list)
-    batch_loads: List[ProductionBatchLoad] = field(default_factory=list)
-    bess: Optional[BESSLoad] = None
+    defrost_loads: list[DefrostLoad] = field(default_factory=list)
+    hvac_loads: list[HVACLoad] = field(default_factory=list)
+    batch_loads: list[ProductionBatchLoad] = field(default_factory=list)
+    bess: BESSLoad | None = None
 
 
 @dataclass
@@ -147,8 +147,8 @@ class ScheduleResult:
     status: str
     is_optimal: bool
     horizon_hours: int
-    baseline_total_load_kw: List[float]
-    optimized_total_load_kw: List[float]
+    baseline_total_load_kw: list[float]
+    optimized_total_load_kw: list[float]
     baseline_cost_eur: float
     optimized_cost_eur: float
     savings_eur: float
@@ -158,9 +158,9 @@ class ScheduleResult:
     peak_reduction_kw: float
     capacity_breached_baseline: bool
     capacity_breached_optimized: bool
-    device_schedules: Dict[str, List[float]] = field(default_factory=dict)
-    hvac_temperatures: Dict[str, List[float]] = field(default_factory=dict)
-    bess_soc_history: List[float] = field(default_factory=list)
+    device_schedules: dict[str, list[float]] = field(default_factory=dict)
+    hvac_temperatures: dict[str, list[float]] = field(default_factory=dict)
+    bess_soc_history: list[float] = field(default_factory=list)
     solve_time_ms: float = 0.0
     operationally_feasible: bool = True
     comfort_violation_c: float = 0.0
@@ -184,7 +184,7 @@ class ActionRecommendation(BaseModel):
     recommended_window: str
     peak_load_avoided_kw: float
     estimated_savings_eur: float
-    confidence_score: Optional[float] = Field(default=None, ge=0.0, le=1.0,
+    confidence_score: float | None = Field(default=None, ge=0.0, le=1.0,
                                              description="Unknown until calibrated against observed outcomes")
     contracted_capacity_kw: float
     projected_peak_kw: float
@@ -202,7 +202,7 @@ class VerificationRecord(BaseModel):
     actual_load_avoided_kw: float
     estimated_savings_eur: float
     actual_savings_eur: float
-    accuracy_pct: Optional[float] = None
+    accuracy_pct: float | None = None
     summary_el: str
     summary_en: str
     duration_hours: float = Field(gt=0, allow_inf_nan=False)
@@ -211,5 +211,5 @@ class VerificationRecord(BaseModel):
     baseline_source: str = "caller_supplied_counterfactual"
     valuation_scope: str = "interval_energy_only; excludes demand charges and shifted-load rebound"
     power_measurement_method: str = "unknown"
-    start_reading_id: Optional[int] = None
-    end_reading_id: Optional[int] = None
+    start_reading_id: int | None = None
+    end_reading_id: int | None = None

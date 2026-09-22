@@ -72,11 +72,14 @@ class GreekMarketAdapter(BaseMarketAdapter):
 
         if facility_contract is not None:
             raw_code = getattr(facility_contract, "contract_code", None) or getattr(facility_contract, "contract_type", "G22")
-            contract_code = raw_code.value if hasattr(raw_code, "value") else str(raw_code).strip().upper().replace("Γ", "G")
+            if raw_code is not None:
+                contract_code = raw_code.value if hasattr(raw_code, "value") else str(raw_code).strip().upper().replace("Γ", "G")
             raw_color = getattr(facility_contract, "tariff_color", None) or getattr(facility_contract, "color", "green")
-            tariff_color = raw_color.value if hasattr(raw_color, "value") else str(raw_color).strip().lower()
-            contracted_kva = getattr(facility_contract, "contracted_capacity_kva", None) or getattr(facility_contract, "contracted_kva", 35.0)
-            power_factor = getattr(facility_contract, "power_factor", 0.98)
+            if raw_color is not None:
+                tariff_color = raw_color.value if hasattr(raw_color, "value") else str(raw_color).strip().lower()
+            raw_kva = getattr(facility_contract, "contracted_capacity_kva", None) or getattr(facility_contract, "contracted_kva", 35.0)
+            contracted_kva = float(raw_kva) if raw_kva is not None else 35.0
+            power_factor = float(getattr(facility_contract, "power_factor", 0.98) or 0.98)
 
         is_lv = (contract_code != "G23")
         etmear_rate = ETMEAR_LV_RATE_EUR_KWH if is_lv else ETMEAR_MV_RATE_EUR_KWH
@@ -171,11 +174,13 @@ class GreekMarketAdapter(BaseMarketAdapter):
         timestamp: datetime,
         facility_contract: Any,
     ) -> DemandCapacityLimit:
-        contracted_kva = getattr(facility_contract, "contracted_capacity_kva", None) or getattr(facility_contract, "contracted_kva", 35.0)
-        peak_threshold = getattr(facility_contract, "peak_threshold_kw", None) or round(contracted_kva * 0.85, 2)
+        raw_kva = getattr(facility_contract, "contracted_capacity_kva", None) or getattr(facility_contract, "contracted_kva", 35.0)
+        contracted_kva = float(raw_kva) if raw_kva is not None else 35.0
+        raw_peak = getattr(facility_contract, "peak_threshold_kw", None)
+        peak_threshold = float(raw_peak) if raw_peak is not None else round(contracted_kva * 0.85, 2)
         return DemandCapacityLimit(
-            contracted_capacity_kw=float(contracted_kva),
-            peak_demand_threshold_kw=float(peak_threshold),
+            contracted_capacity_kw=contracted_kva,
+            peak_demand_threshold_kw=peak_threshold,
             capacity_penalty_rate_eur_kw=round((4.434 / (365 * 24)) * 2.5, 6),
             allows_power_factor_penalty=True,
         )

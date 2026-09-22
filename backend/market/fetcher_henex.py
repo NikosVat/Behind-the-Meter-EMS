@@ -147,7 +147,7 @@ def parse_henex_json(data: dict[str, Any] | list[dict[str, Any]], target_date: s
     items = data.get("prices", data.get("data", [])) if isinstance(data, dict) else data
     records: list[DamHourlyPrice] = []
 
-    for i, item in enumerate(items):
+    for i, item in enumerate(items):  # type: ignore[arg-type]
         try:
             hour = int(item.get("hour", i))
             raw_price = item.get("price_eur_mwh", item.get("price", item.get("mcp", 0.0)))

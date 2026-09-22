@@ -46,6 +46,8 @@ struct BufferedTelemetryRecord {
     SystemPowerSnapshot power;
     uint32_t timestamp_epoch;
     int8_t rssi_dbm;
+    float predicted_next_kw;
+    bool projected_peak_breach;
 };
 
 // Capacity of the in-memory store-and-forward buffer
@@ -97,9 +99,11 @@ public:
      * @brief Enqueue a new telemetry snapshot for transmission.
      * Transmits immediately if connected; otherwise stores in ring buffer.
      * @param snapshot System power snapshot from PowerCalculator
+     * @param predicted_next_kw Optional on-device edge forecast for next hour
+     * @param projected_peak_breach Optional flag for predicted capacity breach
      * @return true if transmitted or queued successfully
      */
-    bool dispatchTelemetry(const SystemPowerSnapshot& snapshot);
+    bool dispatchTelemetry(const SystemPowerSnapshot& snapshot, float predicted_next_kw = -1.0f, bool projected_peak_breach = false);
 
     /**
      * @brief Format ISO-8601 UTC timestamp string from epoch.
@@ -112,7 +116,7 @@ public:
     /**
      * @brief Serialize a telemetry snapshot into JSON string matching backend schema.
      */
-    String serializePayloadJson(const SystemPowerSnapshot& snapshot, const char* timestamp_str, int8_t rssi_dbm);
+    String serializePayloadJson(const SystemPowerSnapshot& snapshot, const char* timestamp_str, int8_t rssi_dbm, float predicted_next_kw = -1.0f, bool projected_peak_breach = false);
 
     /**
      * @brief Check if Wi-Fi is currently connected.

@@ -10,19 +10,20 @@ Provides:
 from __future__ import annotations
 
 import logging
+from collections.abc import AsyncGenerator
 from contextlib import asynccontextmanager
 from datetime import datetime, timezone
-from typing import AsyncGenerator
 
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
 from backend.config import settings
-from backend.database.sqlite_store import get_store, init_db, seed_default_facilities
+from backend.database.sqlite_store import get_store
 from backend.routes.dashboard import router as dashboard_router
 from backend.routes.facilities import router as facilities_router
 from backend.routes.market import router as market_router
 from backend.routes.optimization import router as optimization_router
+from backend.routes.schedules import router as schedules_router
 from backend.routes.telemetry import router as telemetry_router
 from backend.routes.viber import router as viber_router
 
@@ -60,11 +61,13 @@ def create_app(db_path: str | None = None) -> FastAPI:
     )
     app.state.db_path = db_path
 
-    # Configure CORS for local dashboards and simulator CLIs
+    # Configure CORS for dashboards and authorized clients
+    cors_origins = settings.ALLOWED_ORIGINS
+    allow_all = "*" in cors_origins
     app.add_middleware(
         CORSMiddleware,
-        allow_origins=["*"],
-        allow_credentials=True,
+        allow_origins=cors_origins,
+        allow_credentials=not allow_all,
         allow_methods=["*"],
         allow_headers=["*"],
     )
@@ -75,6 +78,7 @@ def create_app(db_path: str | None = None) -> FastAPI:
     app.include_router(market_router, prefix=settings.API_V1_STR)
     app.include_router(viber_router, prefix=settings.API_V1_STR)
     app.include_router(optimization_router, prefix=settings.API_V1_STR)
+    app.include_router(schedules_router, prefix=settings.API_V1_STR)
     app.include_router(dashboard_router)
 
     @app.get("/", tags=["system"])

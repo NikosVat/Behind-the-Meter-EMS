@@ -10,15 +10,18 @@ Implements high-throughput time-series persistence with:
 
 from __future__ import annotations
 
+import itertools
 import json
 import logging
 import os
 import sqlite3
 import threading
+import uuid
+from collections.abc import Generator
 from contextlib import contextmanager
 from datetime import date, datetime, timezone
 from pathlib import Path
-from typing import Any, Generator
+from typing import Any
 
 from backend.config import settings
 from backend.models.telemetry import TelemetryPayload
@@ -172,6 +175,65 @@ CREATE TABLE IF NOT EXISTS market_green_tariffs (
     UNIQUE(month, supplier_id, contract_type)
 );
 CREATE INDEX IF NOT EXISTS idx_green_tariffs_month ON market_green_tariffs(month);
+
+-- Equipment assets for generic SME schedule studio
+CREATE TABLE IF NOT EXISTS equipment_assets (
+    asset_id TEXT PRIMARY KEY,
+    facility_id TEXT NOT NULL,
+    name TEXT NOT NULL,
+    category TEXT NOT NULL DEFAULT 'custom',
+    rated_power_kw REAL NOT NULL,
+    required_runtime_minutes INTEGER NOT NULL,
+    earliest_start TEXT NOT NULL DEFAULT '00:00',
+    latest_finish TEXT NOT NULL DEFAULT '23:59',
+    active_weekdays TEXT NOT NULL DEFAULT '[0,1,2,3,4]',
+    must_run INTEGER NOT NULL DEFAULT 1,
+    interruptible INTEGER NOT NULL DEFAULT 0,
+    priority INTEGER NOT NULL DEFAULT 3,
+    preferred_start TEXT,
+    enabled INTEGER NOT NULL DEFAULT 1,
+    created_at TEXT NOT NULL DEFAULT (datetime('now', 'utc')),
+    updated_at TEXT NOT NULL DEFAULT (datetime('now', 'utc')),
+    FOREIGN KEY (facility_id) REFERENCES facility_configs(facility_id)
+);
+CREATE INDEX IF NOT EXISTS idx_assets_facility ON equipment_assets(facility_id);
+
+-- Facility scheduling preferences and constraints
+CREATE TABLE IF NOT EXISTS schedule_settings (
+    facility_id TEXT PRIMARY KEY,
+    time_step_minutes INTEGER NOT NULL DEFAULT 15,
+    max_facility_power_kw REAL NOT NULL DEFAULT 25.0,
+    objective_mode TEXT NOT NULL DEFAULT 'balanced',
+    timezone TEXT NOT NULL DEFAULT 'Europe/Athens',
+    forecast_uncertainty_pct REAL NOT NULL DEFAULT 10.0,
+    updated_at TEXT NOT NULL DEFAULT (datetime('now', 'utc')),
+    FOREIGN KEY (facility_id) REFERENCES facility_configs(facility_id)
+);
+
+-- Generated and saved multi-resolution daily schedules
+CREATE TABLE IF NOT EXISTS generated_schedules (
+    schedule_id TEXT PRIMARY KEY,
+    facility_id TEXT NOT NULL,
+    schedule_date TEXT NOT NULL,
+    status TEXT NOT NULL DEFAULT 'preview',
+    time_step_minutes INTEGER NOT NULL DEFAULT 15,
+    objective_mode TEXT NOT NULL DEFAULT 'balanced',
+    input_source TEXT NOT NULL DEFAULT 'forecast',
+    is_demo INTEGER NOT NULL DEFAULT 0,
+    baseline_cost_eur REAL NOT NULL DEFAULT 0.0,
+    optimized_cost_eur REAL NOT NULL DEFAULT 0.0,
+    estimated_savings_eur REAL NOT NULL DEFAULT 0.0,
+    baseline_peak_kw REAL NOT NULL DEFAULT 0.0,
+    optimized_peak_kw REAL NOT NULL DEFAULT 0.0,
+    uncertainty_margin_kw REAL NOT NULL DEFAULT 0.0,
+    assumptions_json TEXT NOT NULL DEFAULT '[]',
+    warnings_json TEXT NOT NULL DEFAULT '[]',
+    items_json TEXT NOT NULL DEFAULT '[]',
+    timeline_load_json TEXT NOT NULL DEFAULT '{}',
+    generated_at TEXT NOT NULL DEFAULT (datetime('now', 'utc')),
+    FOREIGN KEY (facility_id) REFERENCES facility_configs(facility_id)
+);
+CREATE INDEX IF NOT EXISTS idx_schedules_facility_date ON generated_schedules(facility_id, schedule_date);
 """
 
 
@@ -357,7 +419,7 @@ class SQLiteStore:
             The inserted telemetry reading ID.
         """
         if isinstance(payload, TelemetryPayload):
-            measurement_method = payload.power_measurement_method
+            measurement_method: str = str(payload.power_measurement_method)
             device_id = payload.device_id
             facility_id = payload.facility_id
             ts = payload.timestamp
@@ -501,7 +563,7 @@ class SQLiteStore:
                 ),
             )
 
-            return reading_id
+            return reading_id if reading_id is not None else 0
 
     def get_telemetry_interval(self, facility_id: str, start_id: int, end_id: int) -> list[dict[str, Any]]:
         """Resolve stored interval endpoints and all samples from the same meter.
@@ -526,7 +588,7 @@ class SQLiteStore:
             # Endpoints must identify an unambiguous, chronological interval.
             if len(rows) < 2 or rows[0]["id"] != start_id or rows[-1]["id"] != end_id:
                 raise ValueError("Interval must have distinct chronological endpoints")
-            for previous, current in zip(rows, rows[1:]):
+            for previous, current in itertools.pairwise(rows):
                 if current["cumulative_energy_kwh"] < previous["cumulative_energy_kwh"]:
                     raise ValueError("Energy counter reset within verification interval")
             return [dict(row) for row in rows]
@@ -827,6 +889,278 @@ class SQLiteStore:
                 "SELECT DISTINCT month FROM market_green_tariffs ORDER BY month DESC LIMIT 1;"
             ).fetchone()
             return row["month"] if row else None
+
+    # --- Equipment Assets CRUD ---
+    def create_equipment_asset(self, asset: dict[str, Any]) -> dict[str, Any]:
+        """Create a new generic equipment asset for a facility."""
+        now_utc = datetime.now(timezone.utc).isoformat()
+        asset_id = asset.get("asset_id") or f"ast_{uuid.uuid4().hex[:8]}"
+        facility_id = asset["facility_id"]
+        name = asset["name"]
+        category = asset.get("category", "custom")
+        rated_power_kw = float(asset["rated_power_kw"])
+        required_runtime_minutes = int(asset["required_runtime_minutes"])
+        earliest_start = asset.get("earliest_start", "00:00")
+        latest_finish = asset.get("latest_finish", "23:59")
+        active_weekdays = json.dumps(asset.get("active_weekdays", [0, 1, 2, 3, 4]))
+        must_run = 1 if asset.get("must_run", True) else 0
+        interruptible = 1 if asset.get("interruptible", False) else 0
+        priority = int(asset.get("priority", 3))
+        preferred_start = asset.get("preferred_start")
+        enabled = 1 if asset.get("enabled", True) else 0
+        created_at = asset.get("created_at") or now_utc
+        updated_at = now_utc
+
+        with self.connection() as conn:
+            conn.execute(
+                """
+                INSERT INTO equipment_assets (
+                    asset_id, facility_id, name, category, rated_power_kw,
+                    required_runtime_minutes, earliest_start, latest_finish,
+                    active_weekdays, must_run, interruptible, priority,
+                    preferred_start, enabled, created_at, updated_at
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?);
+                """,
+                (
+                    asset_id, facility_id, name, category, rated_power_kw,
+                    required_runtime_minutes, earliest_start, latest_finish,
+                    active_weekdays, must_run, interruptible, priority,
+                    preferred_start, enabled, created_at, updated_at
+                ),
+            )
+        return self.get_equipment_asset(facility_id, asset_id)  # type: ignore
+
+    def get_equipment_assets(self, facility_id: str, enabled_only: bool = False) -> list[dict[str, Any]]:
+        """List all equipment assets for a facility."""
+        query = "SELECT * FROM equipment_assets WHERE facility_id = ?"
+        params: list[Any] = [facility_id]
+        if enabled_only:
+            query += " AND enabled = 1"
+        query += " ORDER BY priority DESC, created_at ASC;"
+
+        with self.connection() as conn:
+            rows = conn.execute(query, tuple(params)).fetchall()
+            results = []
+            for r in rows:
+                item = dict(r)
+                item["must_run"] = bool(item["must_run"])
+                item["interruptible"] = bool(item["interruptible"])
+                item["enabled"] = bool(item["enabled"])
+                item["active_weekdays"] = json.loads(item["active_weekdays"])
+                results.append(item)
+            return results
+
+    def get_equipment_asset(self, facility_id: str, asset_id: str) -> dict[str, Any] | None:
+        """Fetch a single equipment asset by ID."""
+        with self.connection() as conn:
+            row = conn.execute(
+                "SELECT * FROM equipment_assets WHERE facility_id = ? AND asset_id = ? LIMIT 1;",
+                (facility_id, asset_id),
+            ).fetchone()
+            if not row:
+                return None
+            item = dict(row)
+            item["must_run"] = bool(item["must_run"])
+            item["interruptible"] = bool(item["interruptible"])
+            item["enabled"] = bool(item["enabled"])
+            item["active_weekdays"] = json.loads(item["active_weekdays"])
+            return item
+
+    def update_equipment_asset(self, facility_id: str, asset_id: str, updates: dict[str, Any]) -> dict[str, Any] | None:
+        """Update fields of an existing equipment asset."""
+        existing = self.get_equipment_asset(facility_id, asset_id)
+        if not existing:
+            return None
+
+        fields: list[str] = []
+        params: list[Any] = []
+        for key, val in updates.items():
+            if key in ("asset_id", "facility_id", "created_at"):
+                continue
+            if key == "active_weekdays" and isinstance(val, (list, tuple)):
+                fields.append("active_weekdays = ?")
+                params.append(json.dumps(val))
+            elif key in ("must_run", "interruptible", "enabled"):
+                fields.append(f"{key} = ?")
+                params.append(1 if val else 0)
+            elif key in (
+                "name", "category", "rated_power_kw", "required_runtime_minutes",
+                "earliest_start", "latest_finish", "priority", "preferred_start"
+            ):
+                fields.append(f"{key} = ?")
+                params.append(val)
+
+        if not fields:
+            return existing
+
+        fields.append("updated_at = ?")
+        params.append(datetime.now(timezone.utc).isoformat())
+
+        params.append(facility_id)
+        params.append(asset_id)
+
+        query = f"UPDATE equipment_assets SET {', '.join(fields)} WHERE facility_id = ? AND asset_id = ?;"
+        with self.connection() as conn:
+            conn.execute(query, tuple(params))
+
+        return self.get_equipment_asset(facility_id, asset_id)
+
+    def delete_equipment_asset(self, facility_id: str, asset_id: str) -> bool:
+        """Delete an equipment asset."""
+        with self.connection() as conn:
+            cursor = conn.execute(
+                "DELETE FROM equipment_assets WHERE facility_id = ? AND asset_id = ?;",
+                (facility_id, asset_id),
+            )
+            return cursor.rowcount > 0
+
+    # --- Schedule Settings CRUD ---
+    def get_schedule_settings(self, facility_id: str) -> dict[str, Any] | None:
+        """Retrieve facility scheduling settings, falling back to defaults if unconfigured."""
+        with self.connection() as conn:
+            row = conn.execute(
+                "SELECT * FROM schedule_settings WHERE facility_id = ? LIMIT 1;",
+                (facility_id,),
+            ).fetchone()
+            if row:
+                return dict(row)
+
+        # Check facility config for peak_threshold_kw default
+        fac = self.get_facility_config(facility_id)
+        default_power = float(fac.get("peak_threshold_kw", 25.0)) if fac else 25.0
+        return {
+            "facility_id": facility_id,
+            "time_step_minutes": 15,
+            "max_facility_power_kw": default_power,
+            "objective_mode": "balanced",
+            "timezone": "Europe/Athens",
+            "forecast_uncertainty_pct": 10.0,
+            "updated_at": datetime.now(timezone.utc).isoformat(),
+        }
+
+    def upsert_schedule_settings(self, facility_id: str, settings_dict: dict[str, Any]) -> dict[str, Any]:
+        """Insert or update facility scheduling settings."""
+        now_utc = datetime.now(timezone.utc).isoformat()
+        current = self.get_schedule_settings(facility_id) or {}
+        time_step = settings_dict.get("time_step_minutes", current.get("time_step_minutes", 15))
+        max_power = float(settings_dict.get("max_facility_power_kw", current.get("max_facility_power_kw", 25.0)))
+        obj_mode = settings_dict.get("objective_mode", current.get("objective_mode", "balanced"))
+        tz = settings_dict.get("timezone", current.get("timezone", "Europe/Athens"))
+        uncertainty = float(settings_dict.get("forecast_uncertainty_pct", current.get("forecast_uncertainty_pct", 10.0)))
+
+        with self.connection() as conn:
+            conn.execute(
+                """
+                INSERT INTO schedule_settings (
+                    facility_id, time_step_minutes, max_facility_power_kw,
+                    objective_mode, timezone, forecast_uncertainty_pct, updated_at
+                ) VALUES (?, ?, ?, ?, ?, ?, ?)
+                ON CONFLICT(facility_id) DO UPDATE SET
+                    time_step_minutes = excluded.time_step_minutes,
+                    max_facility_power_kw = excluded.max_facility_power_kw,
+                    objective_mode = excluded.objective_mode,
+                    timezone = excluded.timezone,
+                    forecast_uncertainty_pct = excluded.forecast_uncertainty_pct,
+                    updated_at = excluded.updated_at;
+                """,
+                (facility_id, time_step, max_power, obj_mode, tz, uncertainty, now_utc),
+            )
+        return self.get_schedule_settings(facility_id)  # type: ignore
+
+    # --- Generated Schedules CRUD ---
+    def save_generated_schedule(self, schedule_dict: dict[str, Any]) -> dict[str, Any]:
+        """Persist a generated daily schedule."""
+        now_utc = datetime.now(timezone.utc).isoformat()
+        schedule_id = schedule_dict.get("schedule_id") or f"sch_{uuid.uuid4().hex[:10]}"
+        facility_id = schedule_dict["facility_id"]
+        schedule_date = str(schedule_dict.get("schedule_date", datetime.now(timezone.utc).date().isoformat()))
+        status = schedule_dict.get("status", "saved")
+        time_step = int(schedule_dict.get("time_step_minutes", 15))
+        objective_mode = schedule_dict.get("objective_mode", "balanced")
+        input_source = schedule_dict.get("input_source", "forecast")
+        is_demo = 1 if schedule_dict.get("is_demo", False) else 0
+        baseline_cost = float(schedule_dict.get("baseline_cost_eur", 0.0))
+        optimized_cost = float(schedule_dict.get("optimized_cost_eur", 0.0))
+        estimated_savings = float(schedule_dict.get("estimated_savings_eur", 0.0))
+        baseline_peak = float(schedule_dict.get("baseline_peak_kw", 0.0))
+        optimized_peak = float(schedule_dict.get("optimized_peak_kw", 0.0))
+        uncertainty_margin = float(schedule_dict.get("uncertainty_margin_kw", 0.0))
+        assumptions = json.dumps(schedule_dict.get("assumptions", []))
+        warnings = json.dumps(schedule_dict.get("warnings", []))
+        items = json.dumps(schedule_dict.get("items", []))
+        timeline = json.dumps(schedule_dict.get("timeline_load", {}))
+        generated_at = schedule_dict.get("generated_at") or now_utc
+
+        with self.connection() as conn:
+            conn.execute(
+                """
+                INSERT INTO generated_schedules (
+                    schedule_id, facility_id, schedule_date, status,
+                    time_step_minutes, objective_mode, input_source, is_demo,
+                    baseline_cost_eur, optimized_cost_eur, estimated_savings_eur,
+                    baseline_peak_kw, optimized_peak_kw, uncertainty_margin_kw,
+                    assumptions_json, warnings_json, items_json, timeline_load_json,
+                    generated_at
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                ON CONFLICT(schedule_id) DO UPDATE SET
+                    status = excluded.status,
+                    optimized_cost_eur = excluded.optimized_cost_eur,
+                    estimated_savings_eur = excluded.estimated_savings_eur,
+                    optimized_peak_kw = excluded.optimized_peak_kw,
+                    items_json = excluded.items_json,
+                    timeline_load_json = excluded.timeline_load_json;
+                """,
+                (
+                    schedule_id, facility_id, schedule_date, status,
+                    time_step, objective_mode, input_source, is_demo,
+                    baseline_cost, optimized_cost, estimated_savings,
+                    baseline_peak, optimized_peak, uncertainty_margin,
+                    assumptions, warnings, items, timeline,
+                    generated_at
+                ),
+            )
+        return self.get_generated_schedule(facility_id, schedule_id)  # type: ignore
+
+    def get_generated_schedules(self, facility_id: str, limit: int = 20) -> list[dict[str, Any]]:
+        """List historical generated and saved schedules for a facility."""
+        with self.connection() as conn:
+            rows = conn.execute(
+                """
+                SELECT schedule_id, facility_id, schedule_date, status,
+                       time_step_minutes, objective_mode, input_source, is_demo,
+                       baseline_cost_eur, optimized_cost_eur, estimated_savings_eur,
+                       baseline_peak_kw, optimized_peak_kw, uncertainty_margin_kw,
+                       generated_at
+                FROM generated_schedules
+                WHERE facility_id = ?
+                ORDER BY generated_at DESC
+                LIMIT ?;
+                """,
+                (facility_id, limit),
+            ).fetchall()
+            results = []
+            for r in rows:
+                item = dict(r)
+                item["is_demo"] = bool(item["is_demo"])
+                results.append(item)
+            return results
+
+    def get_generated_schedule(self, facility_id: str, schedule_id: str) -> dict[str, Any] | None:
+        """Fetch a specific schedule and its full details."""
+        with self.connection() as conn:
+            row = conn.execute(
+                "SELECT * FROM generated_schedules WHERE facility_id = ? AND schedule_id = ? LIMIT 1;",
+                (facility_id, schedule_id),
+            ).fetchone()
+            if not row:
+                return None
+            item = dict(row)
+            item["is_demo"] = bool(item["is_demo"])
+            item["assumptions"] = json.loads(item.pop("assumptions_json"))
+            item["warnings"] = json.loads(item.pop("warnings_json"))
+            item["items"] = json.loads(item.pop("items_json"))
+            item["timeline_load"] = json.loads(item.pop("timeline_load_json"))
+            return item
 
 
 # Global store instance registry

@@ -84,6 +84,30 @@
   <!-- Main Container -->
   <main class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6 space-y-6">
 
+    <!-- Navigation Tabs -->
+    <div class="flex items-center space-x-2 border-b border-slate-800 pb-3">
+      <button
+        id="tabMonitoringBtn"
+        onclick="switchTab('monitoring')"
+        class="flex items-center space-x-2 px-4 py-2 rounded-xl text-xs sm:text-sm font-bold transition bg-emerald-500/20 text-emerald-300 border border-emerald-500/30 cursor-pointer"
+      >
+        <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z" /></svg>
+        <span>Live Τηλεμετρία & Εποπτεία</span>
+      </button>
+      <button
+        id="tabScheduleBtn"
+        onclick="switchTab('schedule')"
+        class="flex items-center space-x-2 px-4 py-2 rounded-xl text-xs sm:text-sm font-bold transition bg-slate-900 text-slate-400 hover:text-slate-200 hover:bg-slate-850 border border-slate-800 cursor-pointer"
+      >
+        <svg class="w-4 h-4 text-amber-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
+        <span>Schedule Studio — Βελτιστοποίηση Εξοπλισμού</span>
+        <span class="text-[10px] bg-amber-500/20 text-amber-300 px-1.5 py-0.5 rounded border border-amber-500/30 uppercase font-mono">Advisory</span>
+      </button>
+    </div>
+
+    <!-- Live Monitoring Tab Container -->
+    <div id="monitoringTabContent" class="space-y-6">
+
     <!-- Active Tariff & DEDDIE Zone Banner -->
     <div class="bg-gradient-to-r from-slate-900 via-slate-850 to-slate-900 border border-slate-800 rounded-2xl p-4 shadow-xl flex flex-wrap items-center justify-between gap-4">
       <div class="flex items-center space-x-4">
@@ -371,6 +395,420 @@
       </div>
 
     </div>
+    </div>
+    <!-- /#monitoringTabContent -->
+
+    <!-- ================================================================= -->
+    <!-- SCHEDULE STUDIO TAB CONTENT -->
+    <!-- ================================================================= -->
+    <div id="scheduleTabContent" class="hidden space-y-6">
+
+      <!-- Advisory Disclaimer Banner -->
+      <div class="bg-amber-500/10 border border-amber-500/30 rounded-2xl p-4 shadow-lg flex items-start space-x-3 text-amber-200">
+        <svg class="w-6 h-6 text-amber-400 shrink-0 mt-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+        </svg>
+        <div class="flex-1">
+          <div class="flex flex-wrap items-center justify-between gap-2">
+            <h3 class="font-bold text-sm text-amber-300">Συμβουλευτικός Προγραμματισμός Φορτίων (Advisory Only)</h3>
+            <span class="text-[11px] font-mono font-bold px-2 py-0.5 rounded bg-amber-500/20 text-amber-300 border border-amber-500/30 uppercase">Χωρις αυτοματη ενεργοποιηση</span>
+          </div>
+          <p class="text-xs text-amber-200/80 mt-1 leading-relaxed">
+            Το σύστημα παράγει μαθηματικά βελτιστοποιημένα χρονοδιαγράμματα για μείωση του λογαριασμού ρεύματος και αποφυγή προστίμων υπέρβασης συμφωνημένης ισχύος.
+            <strong>ΔΕΝ εκτελούνται αυτόματες φυσικές ενεργοποιήσεις φορτίων.</strong> Όλες οι προτάσεις αποτελούν επιχειρησιακές συστάσεις προς τον υπεύθυνο της εγκατάστασης.
+          </p>
+        </div>
+      </div>
+
+      <!-- Settings & Controls Bar -->
+      <div class="bg-slate-900 border border-slate-800 rounded-2xl p-5 shadow-xl">
+        <div class="flex flex-wrap items-center justify-between gap-4 mb-4 pb-3 border-b border-slate-800">
+          <div class="flex items-center space-x-2">
+            <div class="w-8 h-8 rounded-lg bg-indigo-500/20 text-indigo-400 flex items-center justify-center font-bold">
+              <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 6V4m0 2a2 2 0 100 4m0-4a2 2 0 110 4m-6 8a2 2 0 100-4m0 4a2 2 0 110-4m0 4v2m0-6V4m6 6v10m6-2a2 2 0 100-4m0 4a2 2 0 110-4m0 4v2m0-6V4" /></svg>
+            </div>
+            <div>
+              <h2 class="text-base font-bold text-white tracking-tight">Παράμετροι Βελτιστοποίησης</h2>
+              <p class="text-xs text-slate-400">Επιλέξτε χρονική ανάλυση, όριο ισχύος και επιχειρησιακό στόχο</p>
+            </div>
+          </div>
+
+          <div class="flex items-center space-x-2">
+            <button
+              id="btnPreviewSchedule"
+              onclick="triggerPreviewSchedule()"
+              class="bg-emerald-600 hover:bg-emerald-500 text-white font-semibold text-xs sm:text-sm py-2 px-4 rounded-xl shadow-lg shadow-emerald-600/20 transition flex items-center space-x-1.5 cursor-pointer"
+            >
+              <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M14.752 11.168l-3.197-2.132A1 1 0 0010 9.87v4.263a1 1 0 001.555.832l3.197-2.132a1 1 0 000-1.664z" /><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 12a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
+              <span>Υπολογισμός Προγράμματος</span>
+            </button>
+            <button
+              id="btnSaveSchedule"
+              onclick="triggerSaveSchedule()"
+              disabled
+              class="bg-indigo-600 hover:bg-indigo-500 disabled:opacity-40 disabled:cursor-not-allowed text-white font-semibold text-xs sm:text-sm py-2 px-4 rounded-xl shadow-lg shadow-indigo-600/20 transition flex items-center space-x-1.5 cursor-pointer"
+            >
+              <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 7H5a2 2 0 00-2 2v9a2 2 0 002 2h14a2 2 0 002-2V9a2 2 0 00-2-2h-3m-1 4l-3 3m0 0l-3-3m3 3V4" /></svg>
+              <span>Αποθήκευση</span>
+            </button>
+          </div>
+        </div>
+
+        <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+          <!-- Date -->
+          <div>
+            <label for="schedDate" class="block text-xs font-semibold text-slate-300 mb-1">Ημερομηνία</label>
+            <input
+              type="date"
+              id="schedDate"
+              class="w-full bg-slate-950 border border-slate-700 rounded-xl px-3 py-2 text-xs sm:text-sm text-white focus:outline-none focus:border-emerald-500"
+            />
+          </div>
+
+          <!-- Resolution -->
+          <div>
+            <label for="schedResolution" class="block text-xs font-semibold text-slate-300 mb-1">Χρονική Ανάλυση (Δt)</label>
+            <select
+              id="schedResolution"
+              class="w-full bg-slate-950 border border-slate-700 rounded-xl px-3 py-2 text-xs sm:text-sm text-white focus:outline-none focus:border-emerald-500 cursor-pointer"
+            >
+              <option value="5">5 λεπτά (288 θυρίδες - Υψηλή Ακρίβεια)</option>
+              <option value="15" selected>15 λεπτά (96 θυρίδες - Προτεινόμενο)</option>
+              <option value="30">30 λεπτά (48 θυρίδες)</option>
+              <option value="60">60 λεπτά (24 θυρίδες)</option>
+            </select>
+          </div>
+
+          <!-- Max Power kW -->
+          <div>
+            <label for="schedMaxPower" class="block text-xs font-semibold text-slate-300 mb-1">Συμφωνημένη Ισχύς (kW)</label>
+            <div class="relative">
+              <input
+                type="number"
+                id="schedMaxPower"
+                step="0.5"
+                min="5"
+                max="300"
+                value="25.0"
+                class="w-full bg-slate-950 border border-slate-700 rounded-xl px-3 py-2 text-xs sm:text-sm font-mono text-white focus:outline-none focus:border-emerald-500"
+              />
+              <span class="absolute right-3 top-2 text-xs text-slate-500 font-mono">kW</span>
+            </div>
+          </div>
+
+          <!-- Objective Mode -->
+          <div>
+            <label for="schedObjective" class="block text-xs font-semibold text-slate-300 mb-1">Στόχος Βελτιστοποίησης</label>
+            <select
+              id="schedObjective"
+              class="w-full bg-slate-950 border border-slate-700 rounded-xl px-3 py-2 text-xs sm:text-sm text-white focus:outline-none focus:border-emerald-500 cursor-pointer"
+            >
+              <option value="balanced" selected>Ισορροπημένο (Κόστος & Αιχμή)</option>
+              <option value="cost">Ελαχιστοποίηση Κόστους (€)</option>
+              <option value="peak">Εξομάλυνση Αιχμής (kW)</option>
+            </select>
+          </div>
+        </div>
+
+        <div class="mt-3 flex items-center justify-between text-xs text-slate-400 bg-slate-950/60 p-2.5 rounded-xl border border-slate-800">
+          <div class="flex items-center space-x-2">
+            <span class="w-2 h-2 rounded-full bg-amber-400"></span>
+            <span>Συντηρητικό Περιθώριο Αβεβαιότητας: <strong>+10% στο βασικό φορτίο</strong> (Προστασία από τυχαίες διακυμάνσεις).</span>
+          </div>
+          <span id="schedStatusPill" class="font-mono text-xs font-semibold text-slate-400">Έτοιμο για υπολογισμό</span>
+        </div>
+      </div>
+
+      <!-- Equipment Inventory & Quick Templates -->
+      <div class="bg-slate-900 border border-slate-800 rounded-2xl p-5 shadow-xl space-y-4">
+        <div class="flex flex-wrap items-center justify-between gap-3">
+          <div>
+            <h2 class="text-base font-bold text-white tracking-tight">Ηλεκτρικός Εξοπλισμός Εγκατάστασης</h2>
+            <p class="text-xs text-slate-400">Ορίστε τις συσκευές, ισχύ, απαιτούμενο χρόνο και επιτρεπτά παράθυρα λειτουργίας</p>
+          </div>
+
+          <button
+            onclick="openAssetModal()"
+            class="bg-slate-800 hover:bg-slate-700 border border-slate-700 text-slate-200 font-semibold text-xs sm:text-sm py-1.5 px-3.5 rounded-xl transition flex items-center space-x-1.5 cursor-pointer"
+          >
+            <svg class="w-4 h-4 text-emerald-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4" /></svg>
+            <span>+ Προσθήκη Συσκευής</span>
+          </button>
+        </div>
+
+        <!-- Quick Templates -->
+        <div class="bg-slate-950/60 border border-slate-800/80 rounded-xl p-3">
+          <div class="text-xs font-semibold text-slate-400 mb-2">⚡ Γρήγορα Πρότυπα (Quick Templates):</div>
+          <div class="flex flex-wrap gap-2">
+            <button onclick="applyQuickTemplate('oven')" class="text-xs bg-slate-900 hover:bg-slate-800 border border-slate-700 text-slate-300 px-2.5 py-1.5 rounded-lg transition cursor-pointer">🥖 Φούρνος (10 kW)</button>
+            <button onclick="applyQuickTemplate('dishwasher')" class="text-xs bg-slate-900 hover:bg-slate-800 border border-slate-700 text-slate-300 px-2.5 py-1.5 rounded-lg transition cursor-pointer">🍽️ Πλυντήριο (6 kW)</button>
+            <button onclick="applyQuickTemplate('water_heater')" class="text-xs bg-slate-900 hover:bg-slate-800 border border-slate-700 text-slate-300 px-2.5 py-1.5 rounded-lg transition cursor-pointer">⚡ Boiler (4 kW, Διακοπτόμενο)</button>
+            <button onclick="applyQuickTemplate('defrost')" class="text-xs bg-slate-900 hover:bg-slate-800 border border-slate-700 text-slate-300 px-2.5 py-1.5 rounded-lg transition cursor-pointer">❄️ Απόψυξη (5 kW, Νυχτερινό)</button>
+            <button onclick="applyQuickTemplate('hvac')" class="text-xs bg-slate-900 hover:bg-slate-800 border border-slate-700 text-slate-300 px-2.5 py-1.5 rounded-lg transition cursor-pointer">❄️ HVAC (7.5 kW)</button>
+            <button onclick="applyQuickTemplate('ev_charger')" class="text-xs bg-slate-900 hover:bg-slate-800 border border-slate-700 text-slate-300 px-2.5 py-1.5 rounded-lg transition cursor-pointer">🚗 Φορτιστής EV (11 kW)</button>
+          </div>
+        </div>
+
+        <!-- Assets Table -->
+        <div class="overflow-x-auto">
+          <table class="w-full text-left text-xs text-slate-300">
+            <thead class="bg-slate-950/80 text-slate-400 uppercase tracking-wider border-b border-slate-800">
+              <tr>
+                <th class="py-3 px-3">Ενεργό</th>
+                <th class="py-3 px-3">Συσκευή</th>
+                <th class="py-3 px-3">Ισχύς (kW)</th>
+                <th class="py-3 px-3">Διάρκεια</th>
+                <th class="py-3 px-3">Επιτρεπτό Ωράριο</th>
+                <th class="py-3 px-3">Τύπος</th>
+                <th class="py-3 px-3">Προτεραιότητα</th>
+                <th class="py-3 px-3 text-right">Ενέργειες</th>
+              </tr>
+            </thead>
+            <tbody id="assetsTableBody" class="divide-y divide-slate-800/60 font-medium">
+              <tr>
+                <td colspan="8" class="text-center py-6 text-slate-500">Φόρτωση εξοπλισμού...</td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+
+      <!-- Preview Results Section (Hidden until calculated) -->
+      <div id="scheduleResultsSection" class="hidden space-y-6">
+
+        <!-- 4 KPI Cards for Optimization Results -->
+        <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+          <!-- Card 1: Estimated Savings -->
+          <div class="bg-slate-900 border border-emerald-500/30 rounded-2xl p-5 shadow-lg bg-gradient-to-br from-slate-900 to-emerald-950/20">
+            <div class="text-slate-400 text-xs font-medium uppercase tracking-wider mb-2 flex justify-between items-center">
+              <span>Εκτιμώμενη Εξοικονόμηση</span>
+              <span class="text-[11px] font-bold px-2 py-0.5 rounded-full bg-emerald-500/10 text-emerald-400 border border-emerald-500/20">ΗΜΕΡΗΣΙΑ</span>
+            </div>
+            <div class="flex items-baseline space-x-1">
+              <span id="kpiSavingsEur" class="text-3xl font-extrabold text-emerald-400 tracking-tight">0.00</span>
+              <span class="text-slate-400 font-semibold text-sm">€</span>
+            </div>
+            <div class="mt-3 text-xs text-slate-400 border-t border-slate-800/60 pt-2.5 flex justify-between">
+              <span>Ποσοστό Μείωσης:</span>
+              <span id="kpiSavingsPct" class="font-bold text-emerald-400">0.0%</span>
+            </div>
+          </div>
+
+          <!-- Card 2: Cost Before / After -->
+          <div class="bg-slate-900 border border-slate-800 rounded-2xl p-5 shadow-lg">
+            <div class="text-slate-400 text-xs font-medium uppercase tracking-wider mb-2">Κόστος Ρεύματος</div>
+            <div class="flex items-baseline space-x-1">
+              <span id="kpiOptCostEur" class="text-3xl font-extrabold text-white tracking-tight">0.00</span>
+              <span class="text-slate-400 font-semibold text-sm">€</span>
+            </div>
+            <div class="mt-3 text-xs text-slate-400 border-t border-slate-800/60 pt-2.5 flex justify-between">
+              <span>Πριν τη βελτιστοποίηση:</span>
+              <span id="kpiBaseCostEur" class="font-mono font-semibold text-slate-400">0.00 €</span>
+            </div>
+          </div>
+
+          <!-- Card 3: Peak Power Before / After -->
+          <div class="bg-slate-900 border border-slate-800 rounded-2xl p-5 shadow-lg">
+            <div class="text-slate-400 text-xs font-medium uppercase tracking-wider mb-2">Μέγιστη Αιχμή Ισχύος</div>
+            <div class="flex items-baseline space-x-1">
+              <span id="kpiOptPeakKw" class="text-3xl font-extrabold text-amber-400 tracking-tight">0.0</span>
+              <span class="text-slate-400 font-semibold text-sm">kW</span>
+            </div>
+            <div class="mt-3 text-xs text-slate-400 border-t border-slate-800/60 pt-2.5 flex justify-between">
+              <span>Προηγούμενη αιχμή:</span>
+              <span id="kpiBasePeakKw" class="font-mono font-semibold text-slate-400">0.0 kW</span>
+            </div>
+          </div>
+
+          <!-- Card 4: Uncertainty Margin -->
+          <div class="bg-slate-900 border border-slate-800 rounded-2xl p-5 shadow-lg">
+            <div class="text-slate-400 text-xs font-medium uppercase tracking-wider mb-2">Περιθώριο Ασφαλείας (+10%)</div>
+            <div class="flex items-baseline space-x-1">
+              <span id="kpiUncertaintyMargin" class="text-3xl font-extrabold text-cyan-400 tracking-tight">0.0</span>
+              <span class="text-slate-400 font-semibold text-sm">kW</span>
+            </div>
+            <div class="mt-3 text-xs text-slate-400 border-t border-slate-800/60 pt-2.5 flex justify-between">
+              <span>Συμφωνημένο Όριο:</span>
+              <span id="kpiContractLimit" class="font-mono font-semibold text-slate-300">25.0 kW</span>
+            </div>
+          </div>
+        </div>
+
+        <!-- Load Profile Chart: Baseline vs Optimized vs Capacity -->
+        <div class="bg-slate-900 border border-slate-800 rounded-2xl p-5 shadow-xl">
+          <div class="flex flex-wrap items-center justify-between gap-3 mb-4">
+            <div>
+              <h2 class="text-base font-bold text-white tracking-tight">Σύγκριση Καμπύλης Φορτίου (Πριν vs Μετά)</h2>
+              <p class="text-xs text-slate-400">Κατανομή ενεργού ισχύος στο 24ωρο σε σύγκριση με το όριο συμφωνημένης ισχύος</p>
+            </div>
+            <div class="flex items-center space-x-3 text-xs">
+              <span class="flex items-center space-x-1"><span class="w-3 h-1 bg-slate-500 inline-block"></span><span class="text-slate-400">Βασικό (Πριν)</span></span>
+              <span class="flex items-center space-x-1"><span class="w-3 h-1 bg-amber-500 inline-block"></span><span class="text-amber-400">Συντηρητικό (+10%)</span></span>
+              <span class="flex items-center space-x-1"><span class="w-3 h-1.5 bg-emerald-500 inline-block"></span><span class="text-emerald-400">Βέλτιστο (Μετά)</span></span>
+              <span class="flex items-center space-x-1"><span class="w-3 h-1 bg-rose-500 inline-block border-t border-dashed"></span><span class="text-rose-400">Όριο Ισχύος</span></span>
+            </div>
+          </div>
+          <div class="relative h-72 w-full">
+            <canvas id="scheduleChartCanvas"></canvas>
+          </div>
+        </div>
+
+        <!-- Gantt Visual Timeline -->
+        <div class="bg-slate-900 border border-slate-800 rounded-2xl p-5 shadow-xl space-y-4">
+          <div>
+            <h2 class="text-base font-bold text-white tracking-tight">Χρονοδιάγραμμα Λειτουργίας Εξοπλισμού (Gantt Timeline)</h2>
+            <p class="text-xs text-slate-400">Οπτική αναπαράσταση των βέλτιστων χρονικών παραθύρων λειτουργίας</p>
+          </div>
+
+          <div id="ganttTimelineContainer" class="space-y-3 pt-2">
+            <!-- Dynamically populated horizontal bars -->
+          </div>
+        </div>
+
+        <!-- Asset Natural Language Explanations (Greek) -->
+        <div class="bg-slate-900 border border-slate-800 rounded-2xl p-5 shadow-xl space-y-4">
+          <div class="flex items-center space-x-2">
+            <svg class="w-5 h-5 text-indigo-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z" /></svg>
+            <h2 class="text-base font-bold text-white tracking-tight">Επεξηγήσεις & Επιχειρησιακή Τεκμηρίωση</h2>
+          </div>
+          <div id="explanationsList" class="grid grid-cols-1 md:grid-cols-2 gap-3">
+            <!-- Dynamically populated cards -->
+          </div>
+        </div>
+
+        <!-- Warnings & Assumptions -->
+        <div id="scheduleWarningsContainer" class="hidden bg-slate-900 border border-amber-500/30 rounded-2xl p-4 space-y-2">
+          <div class="text-xs font-bold text-amber-400 uppercase tracking-wider">Προειδοποιήσεις & Παραδοχές Επιλυτή:</div>
+          <ul id="scheduleWarningsList" class="text-xs text-slate-300 space-y-1 list-disc list-inside"></ul>
+        </div>
+
+      </div>
+
+      <!-- Past Saved Schedules Drawer/Table -->
+      <div class="bg-slate-900 border border-slate-800 rounded-2xl p-5 shadow-xl space-y-3">
+        <div class="flex items-center justify-between">
+          <h2 class="text-base font-bold text-white tracking-tight">Ιστορικό Αποθηκευμένων Προγραμμάτων</h2>
+          <span class="text-xs text-slate-400">Τελευταία αποθηκευμένα προγράμματα για την εγκατάσταση</span>
+        </div>
+        <div class="overflow-x-auto">
+          <table class="w-full text-left text-xs text-slate-300">
+            <thead class="bg-slate-950/80 text-slate-400 uppercase tracking-wider border-b border-slate-800">
+              <tr>
+                <th class="py-2.5 px-3">ID</th>
+                <th class="py-2.5 px-3">Ημερομηνία</th>
+                <th class="py-2.5 px-3">Ανάλυση</th>
+                <th class="py-2.5 px-3">Στόχος</th>
+                <th class="py-2.5 px-3">Εξοικονόμηση (€)</th>
+                <th class="py-2.5 px-3">Αιχμή (kW)</th>
+                <th class="py-2.5 px-3 text-right">Ενέργεια</th>
+              </tr>
+            </thead>
+            <tbody id="savedSchedulesTableBody" class="divide-y divide-slate-800/60 font-mono">
+              <tr>
+                <td colspan="7" class="text-center py-4 text-slate-500">Δεν υπάρχουν αποθηκευμένα προγράμματα.</td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+
+    </div>
+    <!-- /#scheduleTabContent -->
+
+    <!-- Add/Edit Asset Modal -->
+    <div id="assetModal" class="hidden fixed inset-0 z-50 bg-black/70 backdrop-blur-sm flex items-center justify-center p-4">
+      <div class="bg-slate-900 border border-slate-700 rounded-2xl max-w-lg w-full p-6 shadow-2xl space-y-4 max-h-[90vh] overflow-y-auto">
+        <div class="flex items-center justify-between pb-3 border-b border-slate-800">
+          <h3 id="modalTitle" class="text-base font-bold text-white">Προσθήκη Ηλεκτρικής Συσκευής</h3>
+          <button onclick="closeAssetModal()" class="text-slate-400 hover:text-white cursor-pointer">
+            <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" /></svg>
+          </button>
+        </div>
+
+        <form id="assetForm" onsubmit="handleAssetFormSubmit(event)" class="space-y-4 text-xs">
+          <input type="hidden" id="assetModalId" value="" />
+
+          <div>
+            <label class="block font-semibold text-slate-300 mb-1">Όνομα Συσκευής *</label>
+            <input type="text" id="assetNameInput" required placeholder="π.χ. Βιομηχανικός Φούρνος" class="w-full bg-slate-950 border border-slate-700 rounded-xl px-3 py-2 text-white focus:outline-none focus:border-emerald-500" />
+          </div>
+
+          <div class="grid grid-cols-2 gap-3">
+            <div>
+              <label class="block font-semibold text-slate-300 mb-1">Κατηγορία</label>
+              <select id="assetCategorySelect" class="w-full bg-slate-950 border border-slate-700 rounded-xl px-3 py-2 text-white focus:outline-none focus:border-emerald-500 cursor-pointer">
+                <option value="oven">Φούρνος / Ψήσιμο (Oven)</option>
+                <option value="dishwasher">Πλυντήριο (Dishwasher)</option>
+                <option value="water_heater">Θερμοσίφωνας / Boiler</option>
+                <option value="defrost">Απόψυξη (Defrost)</option>
+                <option value="hvac">Κλιματισμός / HVAC</option>
+                <option value="ev_charger">Φορτιστής EV</option>
+                <option value="compressor">Συμπιεστής (Compressor)</option>
+                <option value="custom" selected>Προσαρμοσμένο (Custom)</option>
+              </select>
+            </div>
+            <div>
+              <label class="block font-semibold text-slate-300 mb-1">Ονομαστική Ισχύς (kW) *</label>
+              <input type="number" id="assetPowerInput" required step="0.1" min="0.1" max="500" placeholder="10.0" class="w-full bg-slate-950 border border-slate-700 rounded-xl px-3 py-2 text-white font-mono focus:outline-none focus:border-emerald-500" />
+            </div>
+          </div>
+
+          <div class="grid grid-cols-3 gap-3">
+            <div>
+              <label class="block font-semibold text-slate-300 mb-1">Διάρκεια (λεπτά) *</label>
+              <input type="number" id="assetDurationInput" required step="5" min="5" max="1440" placeholder="60" class="w-full bg-slate-950 border border-slate-700 rounded-xl px-3 py-2 text-white font-mono focus:outline-none focus:border-emerald-500" />
+            </div>
+            <div>
+              <label class="block font-semibold text-slate-300 mb-1">Νωρίτερη Έναρξη</label>
+              <input type="time" id="assetEarliestInput" value="00:00" class="w-full bg-slate-950 border border-slate-700 rounded-xl px-3 py-2 text-white font-mono focus:outline-none focus:border-emerald-500" />
+            </div>
+            <div>
+              <label class="block font-semibold text-slate-300 mb-1">Αργότερη Λήξη</label>
+              <input type="time" id="assetLatestInput" value="23:59" class="w-full bg-slate-950 border border-slate-700 rounded-xl px-3 py-2 text-white font-mono focus:outline-none focus:border-emerald-500" />
+            </div>
+          </div>
+
+          <!-- Advanced Options Accordion -->
+          <details class="bg-slate-950/60 border border-slate-800 rounded-xl p-3">
+            <summary class="font-semibold text-slate-400 cursor-pointer hover:text-slate-200">Προηγμένες Επιχειρησιακές Ρυθμίσεις ⚙️</summary>
+            <div class="space-y-3 pt-3">
+              <div class="grid grid-cols-2 gap-3">
+                <div>
+                  <label class="block font-semibold text-slate-300 mb-1">Προτεραιότητα (1-5)</label>
+                  <select id="assetPrioritySelect" class="w-full bg-slate-950 border border-slate-700 rounded-xl px-3 py-2 text-white cursor-pointer">
+                    <option value="1">1 - Χαμηλή</option>
+                    <option value="2">2 - Δευτερεύουσα</option>
+                    <option value="3" selected>3 - Κανονική</option>
+                    <option value="4">4 - Σημαντική</option>
+                    <option value="5">5 - Κρίσιμη</option>
+                  </select>
+                </div>
+                <div>
+                  <label class="block font-semibold text-slate-300 mb-1">Προτιμώμενη Ώρα Έναρξης</label>
+                  <input type="time" id="assetPreferredInput" class="w-full bg-slate-950 border border-slate-700 rounded-xl px-3 py-2 text-white font-mono focus:outline-none focus:border-emerald-500" />
+                </div>
+              </div>
+
+              <div class="flex flex-col space-y-2 pt-1">
+                <label class="flex items-center space-x-2 cursor-pointer">
+                  <input type="checkbox" id="assetMustRunCheck" checked class="rounded bg-slate-900 border-slate-700 text-emerald-500 focus:ring-0 cursor-pointer" />
+                  <span class="text-slate-300"><strong>Υποχρεωτική Εκτέλεση (Must-Run):</strong> Η συσκευή πρέπει οπωσδήποτε να ολοκληρώσει τον κύκλο της.</span>
+                </label>
+                <label class="flex items-center space-x-2 cursor-pointer">
+                  <input type="checkbox" id="assetInterruptibleCheck" class="rounded bg-slate-900 border-slate-700 text-emerald-500 focus:ring-0 cursor-pointer" />
+                  <span class="text-slate-300"><strong>Διακοπτόμενη Λειτουργία:</strong> Επιτρέπεται ο διαχωρισμός του χρόνου λειτουργίας σε μη συνεχόμενες θυρίδες.</span>
+                </label>
+              </div>
+            </div>
+          </details>
+
+          <div class="flex justify-end space-x-2 pt-3 border-t border-slate-800">
+            <button type="button" onclick="closeAssetModal()" class="px-4 py-2 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-300 font-semibold cursor-pointer">Ακύρωση</button>
+            <button type="submit" class="px-4 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white font-semibold cursor-pointer">Αποθήκευση Συσκευής</button>
+          </div>
+        </form>
+      </div>
+    </div>
 
   </main>
 
@@ -560,6 +998,9 @@
     document.getElementById('facilitySelect').addEventListener('change', (e) => {
       currentFacilityId = e.target.value;
       refreshDashboard();
+      if (currentTab === 'schedule') {
+        loadScheduleStudioData();
+      }
     });
 
     // Handle settings update
@@ -602,6 +1043,540 @@
         setTimeout(() => { toast.classList.add('hidden'); }, 3500);
       }
     });
+
+    // =========================================================================
+    // Schedule Studio Client Logic
+    // =========================================================================
+    let currentTab = 'monitoring';
+    let scheduleChart = null;
+    let facilityAssets = [];
+    let lastGeneratedSchedule = null;
+
+    function switchTab(tab) {
+      currentTab = tab;
+      const monBtn = document.getElementById('tabMonitoringBtn');
+      const schBtn = document.getElementById('tabScheduleBtn');
+      const monContent = document.getElementById('monitoringTabContent');
+      const schContent = document.getElementById('scheduleTabContent');
+
+      if (tab === 'monitoring') {
+        monContent.classList.remove('hidden');
+        schContent.classList.add('hidden');
+        monBtn.className = 'flex items-center space-x-2 px-4 py-2 rounded-xl text-xs sm:text-sm font-bold transition bg-emerald-500/20 text-emerald-300 border border-emerald-500/30 cursor-pointer';
+        schBtn.className = 'flex items-center space-x-2 px-4 py-2 rounded-xl text-xs sm:text-sm font-bold transition bg-slate-900 text-slate-400 hover:text-slate-200 hover:bg-slate-850 border border-slate-800 cursor-pointer';
+      } else {
+        monContent.classList.add('hidden');
+        schContent.classList.remove('hidden');
+        schBtn.className = 'flex items-center space-x-2 px-4 py-2 rounded-xl text-xs sm:text-sm font-bold transition bg-indigo-500/20 text-indigo-300 border border-indigo-500/30 cursor-pointer';
+        monBtn.className = 'flex items-center space-x-2 px-4 py-2 rounded-xl text-xs sm:text-sm font-bold transition bg-slate-900 text-slate-400 hover:text-slate-200 hover:bg-slate-850 border border-slate-800 cursor-pointer';
+        loadScheduleStudioData();
+      }
+    }
+
+    async function loadScheduleStudioData() {
+      // Set default date to today
+      const dateInput = document.getElementById('schedDate');
+      if (!dateInput.value) {
+        dateInput.value = new Date().toISOString().split('T')[0];
+      }
+
+      try {
+        // 1. Fetch facility schedule settings
+        const settingsRes = await fetch(`/api/v1/facilities/${currentFacilityId}/schedule-settings`);
+        if (settingsRes.ok) {
+          const s = await settingsRes.json();
+          document.getElementById('schedResolution').value = s.time_step_minutes;
+          document.getElementById('schedMaxPower').value = s.max_facility_power_kw;
+          document.getElementById('schedObjective').value = s.objective_mode;
+        }
+
+        // 2. Fetch assets
+        await reloadAssetsTable();
+
+        // 3. Fetch past schedules
+        await reloadSavedSchedules();
+      } catch (err) {
+        console.error('Error loading Schedule Studio data:', err);
+      }
+    }
+
+    async function reloadAssetsTable() {
+      const res = await fetch(`/api/v1/facilities/${currentFacilityId}/assets`);
+      const tbody = document.getElementById('assetsTableBody');
+      if (!res.ok) {
+        tbody.innerHTML = '<tr><td colspan="8" class="text-center py-4 text-rose-400">Σφάλμα ανάκτησης εξοπλισμού.</td></tr>';
+        return;
+      }
+      facilityAssets = await res.json();
+      if (facilityAssets.length === 0) {
+        tbody.innerHTML = '<tr><td colspan="8" class="text-center py-6 text-slate-400">Δεν έχει καταχωρηθεί εξοπλισμός. Επιλέξτε ένα Γρήγορο Πρότυπο παραπάνω ή πατήστε "+ Προσθήκη Συσκευής".</td></tr>';
+        return;
+      }
+
+      tbody.innerHTML = facilityAssets.map(a => `
+        <tr class="hover:bg-slate-900/50 transition">
+          <td class="py-2.5 px-3">
+            <input type="checkbox" ${a.enabled ? 'checked' : ''} onchange="toggleAssetEnabled('${a.asset_id}', this.checked)" class="rounded bg-slate-900 border-slate-700 text-emerald-500 cursor-pointer" />
+          </td>
+          <td class="py-2.5 px-3 font-semibold text-white">
+            <div class="flex items-center space-x-1.5">
+              <span>${getCategoryIcon(a.category)}</span>
+              <span>${escapeHtml(a.name)}</span>
+            </div>
+          </td>
+          <td class="py-2.5 px-3 font-mono text-emerald-400 font-bold">${a.rated_power_kw.toFixed(1)} kW</td>
+          <td class="py-2.5 px-3 font-mono text-slate-300">${a.required_runtime_minutes} λεπτά</td>
+          <td class="py-2.5 px-3 font-mono text-slate-300">${a.earliest_start} - ${a.latest_finish}</td>
+          <td class="py-2.5 px-3">
+            <span class="text-[10px] px-1.5 py-0.5 rounded font-mono ${a.interruptible ? 'bg-cyan-500/15 text-cyan-300 border border-cyan-500/20' : 'bg-slate-800 text-slate-300'}">
+              ${a.interruptible ? 'Διακοπτόμενο' : 'Συνεχόμενο'}
+            </span>
+            <span class="text-[10px] px-1.5 py-0.5 rounded font-mono ml-1 ${a.must_run ? 'bg-amber-500/15 text-amber-300 border border-amber-500/20' : 'bg-purple-500/15 text-purple-300'}">
+              ${a.must_run ? 'Υποχρεωτικό' : 'Προαιρετικό'}
+            </span>
+          </td>
+          <td class="py-2.5 px-3">
+            <span class="text-amber-400 font-mono font-bold">${'★'.repeat(a.priority)}${'☆'.repeat(5 - a.priority)}</span>
+          </td>
+          <td class="py-2.5 px-3 text-right space-x-1">
+            <button onclick="openAssetModal('${a.asset_id}')" class="text-xs text-indigo-400 hover:text-indigo-300 p-1 cursor-pointer">Επεξεργασία</button>
+            <button onclick="deleteAsset('${a.asset_id}')" class="text-xs text-rose-400 hover:text-rose-300 p-1 cursor-pointer">Διαγραφή</button>
+          </td>
+        </tr>
+      `).join('');
+    }
+
+    async function reloadSavedSchedules() {
+      const res = await fetch(`/api/v1/facilities/${currentFacilityId}/schedules`);
+      const tbody = document.getElementById('savedSchedulesTableBody');
+      if (!res.ok) return;
+      const schedules = await res.json();
+      if (schedules.length === 0) {
+        tbody.innerHTML = '<tr><td colspan="7" class="text-center py-4 text-slate-500">Δεν υπάρχουν αποθηκευμένα προγράμματα.</td></tr>';
+        return;
+      }
+      tbody.innerHTML = schedules.map(s => `
+        <tr class="hover:bg-slate-900/50 transition">
+          <td class="py-2 px-3 text-slate-400">${s.schedule_id}</td>
+          <td class="py-2 px-3 text-white font-medium">${s.schedule_date}</td>
+          <td class="py-2 px-3 text-slate-300">${s.time_step_minutes}m</td>
+          <td class="py-2 px-3 text-slate-300 uppercase">${s.objective_mode}</td>
+          <td class="py-2 px-3 text-emerald-400 font-bold">${s.estimated_savings_eur.toFixed(2)} €</td>
+          <td class="py-2 px-3 text-amber-400">${s.optimized_peak_kw.toFixed(1)} kW</td>
+          <td class="py-2 px-3 text-right">
+            <button onclick="loadSavedSchedule('${s.schedule_id}')" class="text-xs bg-slate-800 hover:bg-slate-700 text-slate-300 px-2 py-1 rounded cursor-pointer">Προβολή</button>
+          </td>
+        </tr>
+      `).join('');
+    }
+
+    async function loadSavedSchedule(scheduleId) {
+      try {
+        const res = await fetch(`/api/v1/facilities/${currentFacilityId}/schedules/${scheduleId}`);
+        if (res.ok) {
+          const schedule = await res.json();
+          renderScheduleResults(schedule);
+          document.getElementById('schedStatusPill').textContent = `Προβολή αποθηκευμένου: ${scheduleId}`;
+        }
+      } catch (err) {
+        console.error('Error fetching schedule:', err);
+      }
+    }
+
+    function getCategoryIcon(cat) {
+      const icons = {
+        oven: '🥖',
+        dishwasher: '🍽️',
+        water_heater: '⚡',
+        defrost: '❄️',
+        hvac: '❄️',
+        ev_charger: '🚗',
+        compressor: '⚙️',
+        custom: '🔌'
+      };
+      return icons[cat] || '🔌';
+    }
+
+    function escapeHtml(str) {
+      return (str || '').replace(/[&<>"']/g, m => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[m]);
+    }
+
+    function openAssetModal(assetId = null) {
+      const modal = document.getElementById('assetModal');
+      const form = document.getElementById('assetForm');
+      const title = document.getElementById('modalTitle');
+      const idInput = document.getElementById('assetModalId');
+
+      form.reset();
+
+      if (assetId) {
+        const asset = facilityAssets.find(a => a.asset_id === assetId);
+        if (asset) {
+          title.textContent = 'Επεξεργασία Συσκευής';
+          idInput.value = asset.asset_id;
+          document.getElementById('assetNameInput').value = asset.name;
+          document.getElementById('assetCategorySelect').value = asset.category;
+          document.getElementById('assetPowerInput').value = asset.rated_power_kw;
+          document.getElementById('assetDurationInput').value = asset.required_runtime_minutes;
+          document.getElementById('assetEarliestInput').value = asset.earliest_start;
+          document.getElementById('assetLatestInput').value = asset.latest_finish;
+          document.getElementById('assetPrioritySelect').value = asset.priority;
+          document.getElementById('assetPreferredInput').value = asset.preferred_start || '';
+          document.getElementById('assetMustRunCheck').checked = asset.must_run;
+          document.getElementById('assetInterruptibleCheck').checked = asset.interruptible;
+        }
+      } else {
+        title.textContent = 'Προσθήκη Ηλεκτρικής Συσκευής';
+        idInput.value = '';
+        document.getElementById('assetEarliestInput').value = '00:00';
+        document.getElementById('assetLatestInput').value = '23:59';
+        document.getElementById('assetPrioritySelect').value = '3';
+        document.getElementById('assetMustRunCheck').checked = true;
+        document.getElementById('assetInterruptibleCheck').checked = false;
+      }
+
+      modal.classList.remove('hidden');
+    }
+
+    function closeAssetModal() {
+      document.getElementById('assetModal').classList.add('hidden');
+    }
+
+    async function handleAssetFormSubmit(e) {
+      e.preventDefault();
+      const assetId = document.getElementById('assetModalId').value;
+      const payload = {
+        name: document.getElementById('assetNameInput').value,
+        category: document.getElementById('assetCategorySelect').value,
+        rated_power_kw: parseFloat(document.getElementById('assetPowerInput').value),
+        required_runtime_minutes: parseInt(document.getElementById('assetDurationInput').value, 10),
+        earliest_start: document.getElementById('assetEarliestInput').value,
+        latest_finish: document.getElementById('assetLatestInput').value,
+        priority: parseInt(document.getElementById('assetPrioritySelect').value, 10),
+        preferred_start: document.getElementById('assetPreferredInput').value || null,
+        must_run: document.getElementById('assetMustRunCheck').checked,
+        interruptible: document.getElementById('assetInterruptibleCheck').checked,
+      };
+
+      try {
+        let res;
+        if (assetId) {
+          res = await fetch(`/api/v1/facilities/${currentFacilityId}/assets/${assetId}`, {
+            method: 'PUT',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(payload)
+          });
+        } else {
+          res = await fetch(`/api/v1/facilities/${currentFacilityId}/assets`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(payload)
+          });
+        }
+
+        if (res.ok) {
+          closeAssetModal();
+          await reloadAssetsTable();
+        } else {
+          const err = await res.json();
+          alert('Σφάλμα: ' + (err.detail || 'Αποτυχία αποθήκευσης'));
+        }
+      } catch (err) {
+        console.error('Error saving asset:', err);
+      }
+    }
+
+    async function toggleAssetEnabled(assetId, enabled) {
+      try {
+        await fetch(`/api/v1/facilities/${currentFacilityId}/assets/${assetId}`, {
+          method: 'PUT',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ enabled: enabled })
+        });
+      } catch (err) {
+        console.error('Error toggling asset:', err);
+      }
+    }
+
+    async function deleteAsset(assetId) {
+      if (!confirm('Είστε βέβαιοι ότι θέλετε να διαγράψετε αυτή τη συσκευή;')) return;
+      try {
+        const res = await fetch(`/api/v1/facilities/${currentFacilityId}/assets/${assetId}`, {
+          method: 'DELETE'
+        });
+        if (res.ok) {
+          await reloadAssetsTable();
+        }
+      } catch (err) {
+        console.error('Error deleting asset:', err);
+      }
+    }
+
+    function applyQuickTemplate(key) {
+      const templates = {
+        oven: { name: 'Βιομηχανικός Φούρνος', category: 'oven', power: 10.0, duration: 60, earliest: '05:00', latest: '11:00', mustRun: true, interruptible: false, priority: 5 },
+        dishwasher: { name: 'Επαγγελματικό Πλυντήριο', category: 'dishwasher', power: 6.0, duration: 45, earliest: '10:00', latest: '16:00', mustRun: true, interruptible: false, priority: 3 },
+        water_heater: { name: 'Θερμοσίφωνας / Boiler', category: 'water_heater', power: 4.0, duration: 45, earliest: '07:00', latest: '18:00', mustRun: true, interruptible: true, priority: 3 },
+        defrost: { name: 'Απόψυξη Ψυγείων', category: 'defrost', power: 5.0, duration: 60, earliest: '22:00', latest: '06:00', mustRun: true, interruptible: false, priority: 4 },
+        hvac: { name: 'Κλιματισμός (HVAC)', category: 'hvac', power: 7.5, duration: 120, earliest: '08:00', latest: '18:00', mustRun: true, interruptible: true, priority: 4 },
+        ev_charger: { name: 'Φορτιστής EV', category: 'ev_charger', power: 11.0, duration: 180, earliest: '21:00', latest: '07:00', mustRun: false, interruptible: true, priority: 2 },
+      };
+
+      const tpl = templates[key];
+      if (!tpl) return;
+
+      openAssetModal(null);
+      document.getElementById('assetNameInput').value = tpl.name;
+      document.getElementById('assetCategorySelect').value = tpl.category;
+      document.getElementById('assetPowerInput').value = tpl.power;
+      document.getElementById('assetDurationInput').value = tpl.duration;
+      document.getElementById('assetEarliestInput').value = tpl.earliest;
+      document.getElementById('assetLatestInput').value = tpl.latest;
+      document.getElementById('assetPrioritySelect').value = tpl.priority;
+      document.getElementById('assetMustRunCheck').checked = tpl.mustRun;
+      document.getElementById('assetInterruptibleCheck').checked = tpl.interruptible;
+    }
+
+    async function triggerPreviewSchedule() {
+      const btn = document.getElementById('btnPreviewSchedule');
+      const statusPill = document.getElementById('schedStatusPill');
+
+      const payload = {
+        schedule_date: document.getElementById('schedDate').value,
+        time_step_minutes: parseInt(document.getElementById('schedResolution').value, 10),
+        max_facility_power_kw: parseFloat(document.getElementById('schedMaxPower').value),
+        objective_mode: document.getElementById('schedObjective').value,
+      };
+
+      try {
+        btn.disabled = true;
+        btn.classList.add('opacity-75');
+        statusPill.textContent = 'Επίλυση MILP σε εξέλιξη...';
+
+        const res = await fetch(`/api/v1/facilities/${currentFacilityId}/schedules/preview`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(payload)
+        });
+
+        if (res.ok) {
+          const schedule = await res.json();
+          lastGeneratedSchedule = schedule;
+          renderScheduleResults(schedule);
+          document.getElementById('btnSaveSchedule').disabled = false;
+          statusPill.textContent = `Βέλτιστη λύση (${schedule.time_step_minutes}m, ${schedule.items.length} συσκευές)`;
+        } else {
+          const err = await res.json();
+          alert('Σφάλμα βελτιστοποίησης: ' + (err.detail || 'Αδυναμία εύρεσης εφικτού προγράμματος'));
+          statusPill.textContent = 'Σφάλμα επίλυσης';
+        }
+      } catch (err) {
+        console.error('Error generating preview:', err);
+        statusPill.textContent = 'Σφάλμα επικοινωνίας';
+      } finally {
+        btn.disabled = false;
+        btn.classList.remove('opacity-75');
+      }
+    }
+
+    async function triggerSaveSchedule() {
+      const btn = document.getElementById('btnSaveSchedule');
+      const statusPill = document.getElementById('schedStatusPill');
+
+      const payload = {
+        schedule_date: document.getElementById('schedDate').value,
+        time_step_minutes: parseInt(document.getElementById('schedResolution').value, 10),
+        max_facility_power_kw: parseFloat(document.getElementById('schedMaxPower').value),
+        objective_mode: document.getElementById('schedObjective').value,
+      };
+
+      try {
+        btn.disabled = true;
+        const res = await fetch(`/api/v1/facilities/${currentFacilityId}/schedules/save`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(payload)
+        });
+
+        if (res.ok) {
+          statusPill.textContent = 'Το πρόγραμμα αποθηκεύτηκε επιτυχώς!';
+          await reloadSavedSchedules();
+        } else {
+          alert('Σφάλμα κατά την αποθήκευση προγράμματος.');
+        }
+      } catch (err) {
+        console.error('Error saving schedule:', err);
+      } finally {
+        btn.disabled = false;
+      }
+    }
+
+    function renderScheduleResults(schedule) {
+      document.getElementById('scheduleResultsSection').classList.remove('hidden');
+
+      // 1. KPIs
+      document.getElementById('kpiSavingsEur').textContent = schedule.estimated_savings_eur.toFixed(2);
+      const savingsPct = schedule.baseline_cost_eur > 0
+        ? ((schedule.estimated_savings_eur / schedule.baseline_cost_eur) * 100).toFixed(1)
+        : '0.0';
+      document.getElementById('kpiSavingsPct').textContent = `${savingsPct}%`;
+      document.getElementById('kpiOptCostEur').textContent = schedule.optimized_cost_eur.toFixed(2);
+      document.getElementById('kpiBaseCostEur').textContent = `${schedule.baseline_cost_eur.toFixed(2)} €`;
+      document.getElementById('kpiOptPeakKw').textContent = schedule.optimized_peak_kw.toFixed(1);
+      document.getElementById('kpiBasePeakKw').textContent = `${schedule.baseline_peak_kw.toFixed(1)} kW`;
+      document.getElementById('kpiUncertaintyMargin').textContent = `+${schedule.uncertainty_margin_kw.toFixed(1)}`;
+      document.getElementById('kpiContractLimit').textContent = `${schedule.timeline_load.max_power_limit_kw.toFixed(1)} kW`;
+
+      // 2. Load Profile Comparison Chart
+      const tl = schedule.timeline_load;
+      const ctx = document.getElementById('scheduleChartCanvas').getContext('2d');
+      if (scheduleChart) {
+        scheduleChart.destroy();
+      }
+
+      scheduleChart = new Chart(ctx, {
+        type: 'line',
+        data: {
+          labels: tl.timestamps,
+          datasets: [
+            {
+              label: 'Βασικό Φορτίο (Πριν)',
+              data: tl.baseline_kw,
+              borderColor: '#64748b',
+              borderWidth: 1.5,
+              borderDash: [4, 4],
+              pointRadius: 0,
+              fill: false,
+            },
+            {
+              label: 'Συντηρητικό (+10%)',
+              data: tl.conservative_baseline_kw,
+              borderColor: '#f59e0b',
+              borderWidth: 1.2,
+              borderDash: [2, 2],
+              pointRadius: 0,
+              fill: false,
+            },
+            {
+              label: 'Βέλτιστο Φορτίο (Μετά)',
+              data: tl.optimized_kw,
+              borderColor: '#10b981',
+              backgroundColor: 'rgba(16, 185, 129, 0.15)',
+              borderWidth: 2.2,
+              tension: 0.3,
+              fill: true,
+              pointRadius: 1,
+            },
+            {
+              label: 'Όριο Ισχύος (kW)',
+              data: Array(tl.timestamps.length).fill(tl.max_power_limit_kw),
+              borderColor: '#f43f5e',
+              borderWidth: 2,
+              borderDash: [6, 6],
+              pointRadius: 0,
+              fill: false,
+            }
+          ]
+        },
+        options: {
+          responsive: true,
+          maintainAspectRatio: false,
+          interaction: { mode: 'index', intersect: false },
+          plugins: {
+            legend: { display: false },
+            tooltip: {
+              backgroundColor: '#0f172a',
+              borderColor: '#334155',
+              borderWidth: 1,
+              padding: 10,
+              callbacks: {
+                label: (ctx) => `${ctx.dataset.label}: ${ctx.parsed.y.toFixed(2)} kW`
+              }
+            }
+          },
+          scales: {
+            x: {
+              grid: { color: 'rgba(51, 65, 85, 0.25)' },
+              ticks: { color: '#94a3b8', font: { size: 10 }, maxTicksLimit: 16 }
+            },
+            y: {
+              grid: { color: 'rgba(51, 65, 85, 0.25)' },
+              ticks: { color: '#94a3b8', font: { size: 10 }, callback: v => v + ' kW' }
+            }
+          }
+        }
+      });
+
+      // 3. Gantt Visual Timeline
+      const ganttContainer = document.getElementById('ganttTimelineContainer');
+      const numSlots = tl.timestamps.length;
+      if (schedule.items.length === 0) {
+        ganttContainer.innerHTML = '<div class="text-xs text-slate-500 py-3">Δεν υπάρχουν ενεργές συσκευές στο πρόγραμμα.</div>';
+      } else {
+        ganttContainer.innerHTML = schedule.items.map(item => {
+          let timelineBar = '';
+          if (item.is_omitted) {
+            timelineBar = '<span class="text-xs font-semibold text-purple-400 italic">Εξαιρέθηκε (Προαιρετική)</span>';
+          } else {
+            // Build 24-slot mini visualization
+            const slotsHtml = Array.from({ length: 24 }).map((_, h) => {
+              const startSlot = Math.floor((h * numSlots) / 24);
+              const endSlot = Math.floor(((h + 1) * numSlots) / 24);
+              const isActive = (item.scheduled_slots || []).some(s => s >= startSlot && s < endSlot);
+              return `<div class="flex-1 h-5 rounded-sm transition ${isActive ? 'bg-emerald-500 shadow-sm shadow-emerald-500/50' : 'bg-slate-950/60 border border-slate-800/80'}"></div>`;
+            }).join('');
+            timelineBar = `<div class="flex space-x-0.5 w-full">${slotsHtml}</div>`;
+          }
+
+          return `
+            <div class="bg-slate-950/70 border border-slate-800/80 rounded-xl p-3 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+              <div class="w-48 shrink-0">
+                <div class="flex items-center space-x-1.5 font-semibold text-white text-xs">
+                  <span>${getCategoryIcon(item.category)}</span>
+                  <span>${escapeHtml(item.asset_name)}</span>
+                </div>
+                <div class="text-[11px] font-mono text-slate-400 mt-0.5">
+                  ${item.is_omitted ? 'Ανενεργό' : `${item.start_time} - ${item.end_time} (${item.duration_minutes}λ)`}
+                </div>
+              </div>
+              <div class="flex-1">
+                ${timelineBar}
+              </div>
+              <div class="text-right shrink-0">
+                <span class="text-xs font-mono font-bold ${item.is_omitted ? 'text-slate-500' : 'text-emerald-400'}">${item.rated_power_kw.toFixed(1)} kW</span>
+              </div>
+            </div>
+          `;
+        }).join('');
+      }
+
+      // 4. Greek Explanations Cards
+      const expList = document.getElementById('explanationsList');
+      expList.innerHTML = schedule.items.map(item => `
+        <div class="bg-slate-950/80 border ${item.is_omitted ? 'border-purple-500/30' : 'border-slate-800'} rounded-xl p-3.5 space-y-1.5">
+          <div class="flex items-center justify-between">
+            <span class="font-bold text-xs text-white flex items-center space-x-1">
+              <span>${getCategoryIcon(item.category)}</span>
+              <span>${escapeHtml(item.asset_name)}</span>
+            </span>
+            <span class="text-[10px] font-mono px-2 py-0.5 rounded ${item.is_omitted ? 'bg-purple-500/20 text-purple-300' : 'bg-emerald-500/20 text-emerald-300'}">
+              ${item.is_omitted ? 'Εξαιρέθηκε' : 'Προγραμματισμένο'}
+            </span>
+          </div>
+          <p class="text-xs text-slate-300 leading-relaxed">${escapeHtml(item.explanation)}</p>
+        </div>
+      `).join('');
+
+      // 5. Warnings
+      const warnContainer = document.getElementById('scheduleWarningsContainer');
+      const warnList = document.getElementById('scheduleWarningsList');
+      if (schedule.warnings && schedule.warnings.length > 0) {
+        warnContainer.classList.remove('hidden');
+        warnList.innerHTML = schedule.warnings.map(w => `<li>${escapeHtml(w)}</li>`).join('');
+      } else {
+        warnContainer.classList.add('hidden');
+      }
+    }
 
     // Initialize on load
     window.addEventListener('DOMContentLoaded', () => {

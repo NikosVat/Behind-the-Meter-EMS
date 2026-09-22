@@ -7,6 +7,10 @@ Provides:
 - Post-intervention closed-loop telemetry audit verifier (ClosedLoopVerifier).
 """
 
+from optimization_engine.decision_support import (
+    ClosedLoopVerifier,
+    DecisionSupportEngine,
+)
 from optimization_engine.models import (
     ActionRecommendation,
     BESSLoad,
@@ -22,7 +26,6 @@ from optimization_engine.models import (
     VerificationStatus,
 )
 from optimization_engine.solver import ConstrainedLoadSolver
-from optimization_engine.decision_support import ClosedLoopVerifier, DecisionSupportEngine
 
 __all__ = [
     "ActionRecommendation",

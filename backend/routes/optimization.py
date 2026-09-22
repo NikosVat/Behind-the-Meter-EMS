@@ -10,13 +10,17 @@ Exposes:
 
 from __future__ import annotations
 
-from typing import Dict, List, Optional
 from datetime import datetime
-from fastapi import APIRouter, HTTPException, Query, Depends
+
+from fastapi import APIRouter, Depends, HTTPException, Query
 from pydantic import BaseModel, ConfigDict, Field, field_validator
+
 from backend.database.sqlite_store import SQLiteStore
 from backend.routes.telemetry import get_database_store
-
+from optimization_engine.decision_support import (
+    ClosedLoopVerifier,
+    DecisionSupportEngine,
+)
 from optimization_engine.models import (
     ActionRecommendation,
     BESSLoad,
@@ -27,20 +31,19 @@ from optimization_engine.models import (
     VerificationRecord,
 )
 from optimization_engine.solver import ConstrainedLoadSolver
-from optimization_engine.decision_support import ClosedLoopVerifier, DecisionSupportEngine
 
 router = APIRouter(prefix="/optimization", tags=["Optimization & Decision Support"])
 
 # In-memory recommendation and verification registry partitioned by facility_id
-_active_recommendations: Dict[str, List[ActionRecommendation]] = {}
-_active_verifications: Dict[str, List[VerificationRecord]] = {}
+_active_recommendations: dict[str, list[ActionRecommendation]] = {}
+_active_verifications: dict[str, list[VerificationRecord]] = {}
 
 
 class SolveRequest(BaseModel):
     facility_id: str = "fac_bakery_01"
     contracted_capacity_kw: float = Field(default=35.0, gt=0.0)
-    baseline_load_kw: Optional[List[float]] = None
-    tariff_rates_eur_kwh: Optional[List[float]] = None
+    baseline_load_kw: list[float] | None = None
+    tariff_rates_eur_kwh: list[float] | None = None
     include_defrost: bool = True
     include_batch_ovens: bool = True
     include_hvac: bool = True
@@ -48,14 +51,14 @@ class SolveRequest(BaseModel):
 
     @field_validator("baseline_load_kw")
     @classmethod
-    def validate_baseline(cls, v: Optional[List[float]]) -> Optional[List[float]]:
+    def validate_baseline(cls, v: list[float] | None) -> list[float] | None:
         if v is not None and len(v) != 24:
             raise ValueError(f"baseline_load_kw must have exactly 24 hourly entries, received {len(v)}")
         return v
 
     @field_validator("tariff_rates_eur_kwh")
     @classmethod
-    def validate_tariffs(cls, v: Optional[List[float]]) -> Optional[List[float]]:
+    def validate_tariffs(cls, v: list[float] | None) -> list[float] | None:
         if v is not None and len(v) != 24:
             raise ValueError(f"tariff_rates_eur_kwh must have exactly 24 hourly entries, received {len(v)}")
         return v
@@ -163,8 +166,8 @@ def solve_schedule(req: SolveRequest):
     }
 
 
-@router.get("/recommendations", response_model=List[ActionRecommendation])
-def get_recommendations(facility_id: Optional[str] = Query(None)):
+@router.get("/recommendations", response_model=list[ActionRecommendation])
+def get_recommendations(facility_id: str | None = Query(None)):
     """Retrieve active decision-support recommendations with optional facility filtering."""
     if facility_id:
         return _active_recommendations.get(facility_id, [])
@@ -177,7 +180,7 @@ def verify_intervention(req: VerificationRequest, store: SQLiteStore = Depends(g
     
     Raises 404 if the recommendation_id is not found in the active registry.
     """
-    rec: Optional[ActionRecommendation] = None
+    rec: ActionRecommendation | None = None
     for facility_recs in _active_recommendations.values():
         for r in facility_recs:
             if r.recommendation_id == req.recommendation_id:
@@ -224,8 +227,8 @@ def verify_intervention(req: VerificationRequest, store: SQLiteStore = Depends(g
     return record
 
 
-@router.get("/verifications", response_model=List[VerificationRecord])
-def get_verifications(facility_id: Optional[str] = Query(None)):
+@router.get("/verifications", response_model=list[VerificationRecord])
+def get_verifications(facility_id: str | None = Query(None)):
     """Retrieve history of certified closed-loop intervention audits."""
     if facility_id:
         return _active_verifications.get(facility_id, [])

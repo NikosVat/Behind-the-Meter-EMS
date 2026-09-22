@@ -7,7 +7,7 @@
 [![Safety Standard](https://img.shields.io/badge/Standard-ELOT%2060364-red.svg)](https://www.elot.gr)
 [![Bill Validation: 0.00% Error](https://img.shields.io/badge/Bill%20Audit-0.00%25%20Error%20(198%20lines)-success.svg)](docs/tariff_validation_report.md)
 [![Calibration: simulation model](https://img.shields.io/badge/Calibration-simulation%20model-blue.svg)](docs/measurement_uncertainty_report.md)
-[![Tests: 511 Passed](https://img.shields.io/badge/tests-511%20passed%20(100%25)-success.svg)](tests/)
+[![Tests: 603 Passed](https://img.shields.io/badge/tests-603%20passed%20(100%25)-success.svg)](tests/)
 
 A prototype closed-loop Behind-the-Meter Energy Management System (EMS) engineered for **commercial SMBs** (artisanal bakeries, cold storage logistics, boutique hotels). The platform bridges low-cost IoT metering hardware (<50€ BOM) with mathematical mixed-integer linear programming (MILP), transforming energy management from passive monitoring into an autonomous optimization loop: **`Measure -> Predict -> Optimize -> Act -> Verify`**.
 
@@ -21,7 +21,7 @@ Optimization defaults are demonstration load, weather and tariff profiles, not a
 
 ## Executive Summary & Empirical Validation
 
-Commercial small-and-medium businesses face extreme electricity bill volatility and severe peak capacity surcharges. Existing commercial solutions (Shelly 3EM, Meazon, utility portals) are purely *passive*—they report historical consumption or trigger crude alarms when money has already been lost, offering zero operational context.
+Commercial small-and-medium businesses face extreme electricity bill volatility and severe peak capacity surcharges. While modern smart meters like the Shelly Pro 3EM provide reliable local webhooks and basic threshold scripting, and enterprise platforms (Schneider EcoStruxure, Siemens Desigo) offer facility-wide monitoring at high industrial cost (€2,500+), neither delivers an out-of-the-box optimization layer tailored to Greek commercial tariffs (Γ21/Γ22/Γ23, Law 5068/2023) or equipment-constrained MILP load scheduling for small businesses.
 
 This platform provides an autonomous decision-support and constrained load scheduling layer that respects physical equipment operating boundaries (refrigeration defrost windows, HVAC comfort deadbands, bakery batch baking runs, battery storage).
 
@@ -53,11 +53,11 @@ This platform provides an autonomous decision-support and constrained load sched
 |---|---|:---:|---|
 | **Peak Demand Curtailment** | Load Reduction in Peak Tariff Windows | **18.4%** | Illustrative profile result; field validation not established here |
 | **Surcharge Avoidance** | Avoided Capacity Breaches & Spot Spikes | **€137 – €284 / mo** | DEDDIE capacity surcharge avoidance model |
-| **Tariff & Bill Calculation** | Line-Item Discrepancy across Utility Bills | **0.00%** | **198 / 198 line items** certified across 9 bills ([`docs/tariff_validation_report.md`](docs/tariff_validation_report.md)) |
+| **Tariff & Bill Calculation** | Line-Item Discrepancy across Utility Bills | **0.00%** | **198 / 198 line items** verified against synthetic formula benchmark ([`docs/tariff_validation_report.md`](docs/tariff_validation_report.md)) |
 | **Hardware Measurement Uncertainty** | Current & Active Power Error | **< 0.35% (I) / < 0.20% (P)** | Simulation comparison, not hardware certification ([`docs/measurement_uncertainty_report.md`](docs/measurement_uncertainty_report.md)) |
 | **Expanded Uncertainty ($k=2$)** | 95% Confidence Interval Budget | **±1.35%** | ISO/IEC Guide 98-3 (GUM) error budget |
 | **MILP Optimization Latency** | 24-Hour Horizon Solve Time | **< 25 ms** | SciPy HiGHS solver (< 100 ms real-time ceiling) |
-| **Test Suite Coverage** | Passing Unit, Integration & E2E Tests | **511 / 511 (100%)** | 5.5s total execution time |
+| **Test Suite Coverage** | Passing Unit, Integration & E2E Tests | **603 / 603 (100%)** | Full test suite execution across all layers |
 
 ---
 
@@ -65,7 +65,7 @@ This platform provides an autonomous decision-support and constrained load sched
 
 | Guide | Document Link | Description |
 |---|---|---|
-| **Tariff & Bill Audit Report** | [`docs/tariff_validation_report.md`](docs/tariff_validation_report.md) | Ground-truth verification across 9 Greek bills (Γ21, Γ22, Γ23, Green, Yellow, Dynamic) with 0.00% line-item error. |
+| **Tariff & Bill Audit Report** | [`docs/tariff_validation_report.md`](docs/tariff_validation_report.md) | Calculation regression benchmark across 9 Greek bills (Γ21, Γ22, Γ23, Green, Yellow, Dynamic) with 0.00% line-item formula discrepancy. |
 | **Measurement Uncertainty Report** | [`docs/measurement_uncertainty_report.md`](docs/measurement_uncertainty_report.md) | ISO/IEC Guide 98-3 GUM error budget, ESP32 ADC linearization, CT phase-shift compensation, and Class 0.5S benchmark. |
 | **Hardware Schematics & Wiring** | [`docs/wiring_schematic.md`](docs/wiring_schematic.md) | SCT-013 CT clamp connections, burden resistor calculation ($18\,\Omega$), ADC1 pinout, virtual ground, and ELOT 60364 safety standards. |
 | **Hardware Bill of Materials (BOM)** | [`docs/hardware_bom.md`](docs/hardware_bom.md) | Sub-€50 component list, part numbers, suppliers, PCB layout, and DIN-rail enclosure recommendations. |
@@ -191,7 +191,32 @@ python -m simulator.cli --profile bakery --speed 60x --url http://localhost:8000
 
 ---
 
-## 5. Technical Feature Inventory (F01–F33)
+## 5. Generic SME Equipment Schedule Studio (`optimization_engine/scheduling_service.py`)
+
+An SME-friendly, multi-resolution scheduling environment ("Schedule Studio") allowing facility owners to define arbitrary electrical equipment and generate mathematical advisory schedules:
+
+- **Multi-Resolution Solving:** Native support for 5, 15, 30, and 60-minute time intervals ($N \in \{288, 96, 48, 24\}$ slots).
+- **Flexible Equipment Operating Models:**
+  - Arbitrary rated kW and required duration.
+  - Permissible time windows including midnight-crossing ranges (e.g., 22:00 to 06:00).
+  - Strict contiguity constraints for non-interruptible loads (ovens, dishwashers, industrial machinery).
+  - Distributed time-slot allocations for interruptible loads (water heaters, HVAC pre-cooling, EV chargers).
+  - Must-run guarantees vs. graceful omission of lower-priority optional equipment under constrained capacity.
+  - Soft preferred start times with priority-weighted penalties.
+- **Conservative Baseline Uncertainty Buffer (+10%):** Protects against physical breaker trips and replay infeasibility discovered during real-world empirical audits ($P_{\text{base, cons}} = 1.10 \times P_{\text{base}}$).
+- **Advisory-Only Paradigm:** Strictly decision-support. Generates natural-language Greek operational explanations (`explanation_el`) for each asset without automatic hardware actuation.
+- **Full REST API Suite:**
+  - `GET/POST /api/v1/facilities/{facility_id}/assets`: Equipment inventory CRUD.
+  - `GET/PUT/DELETE /api/v1/facilities/{facility_id}/assets/{asset_id}`: Single asset operations.
+  - `GET/PUT /api/v1/facilities/{facility_id}/schedule-settings`: Facility resolution, power limits, and objective modes (`cost`, `peak`, `balanced`).
+  - `POST /api/v1/facilities/{facility_id}/schedules/preview`: Real-time schedule optimization preview with Gantt and load profile timeline.
+  - `POST /api/v1/facilities/{facility_id}/schedules/save`: Persistent storage of approved schedules.
+  - `GET /api/v1/facilities/{facility_id}/schedules`: Historical schedule retrieval.
+- **Interactive Web UI:** Integrated into `/dashboard` under the "Schedule Studio" tab, featuring quick templates, equipment toggles, modal dialogs, and Chart.js before/after load comparison curves.
+
+---
+
+## 6. Technical Feature Inventory (F01–F34)
 
 | # | Feature | Subsystem | Description |
 |---|---|---|---|
@@ -228,10 +253,11 @@ python -m simulator.cli --profile bakery --speed 60x --url http://localhost:8000
 | **F31** | Live Greek Energy Market Price Ingestion | Market Feeds | Scraping of monthly RAE Green tariffs & 24h HEnEx DAM spot prices with 4-tier caching |
 | **F32** | Unified Multi-Channel Alerting & Viber Bot | Alerting | Multi-channel dispatching (`telegram`, `viber`, `both`), `MockViberClient`, live Viber webhook, HMAC check |
 | **F33** | Interactive Real-Time Web Dashboard | Dashboard UI | Responsive Single-Page UI at `/dashboard` with 3-phase live metrics, DEDDIE badges, 24h load curve |
+| **F34** | Generic SME Equipment Schedule Studio | Optimization | Multi-resolution (5/15/30/60m) MILP advisory scheduler with conservative uncertainty buffer (+10%), Greek explanations, and REST API |
 
 ---
 
-## 6. Regulatory Compliance & Electrical Safety
+## 7. Regulatory Compliance & Electrical Safety
 
 - **ELOT 60364 / HD 384:** Electrical installations of buildings. Guarantees physical isolation between low-voltage signal wiring and 400V mains busbars.
 - **Law 5068/2023 & MD ΥΠΕΝ:** Greek retail electricity market reorganization establishing Green, Yellow, and Dynamic retail tariffs.

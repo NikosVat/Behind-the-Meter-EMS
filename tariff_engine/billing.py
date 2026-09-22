@@ -169,8 +169,8 @@ class UtilityBill:
         return {
             "bill_id": self.input_spec.bill_id,
             "facility_id": self.input_spec.facility_id,
-            "contract_type": self.input_spec.contract_type.value,
-            "tariff_color": self.input_spec.tariff_color.value,
+            "contract_type": self.input_spec.contract_type.value if hasattr(self.input_spec.contract_type, "value") else str(self.input_spec.contract_type),
+            "tariff_color": self.input_spec.tariff_color.value if hasattr(self.input_spec.tariff_color, "value") else str(self.input_spec.tariff_color),
             "billing_period_days": self.input_spec.billing_period_days,
             "energy_active_total_kwh": self.input_spec.energy_active_total_kwh,
             "contracted_capacity_kva": self.input_spec.contracted_capacity_kva,

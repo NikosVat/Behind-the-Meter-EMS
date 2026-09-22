@@ -35,7 +35,6 @@ from backend.models.alert import (
 )
 from backend.models.telemetry import TelemetryPayload
 from bot.telegram_client import ITelegramClient, LiveTelegramClient, MockTelegramClient
-from bot.viber_client import IViberClient, LiveViberClient, MockViberClient
 from bot.templates_el import (
     get_peak_window_str,
     get_tailored_curtailment_advice,
@@ -44,13 +43,14 @@ from bot.templates_el import (
     render_peak_breach_alert,
     render_pre_warning_alert,
 )
+from bot.viber_client import IViberClient, LiveViberClient, MockViberClient
 
 try:
     from tariff_engine.contracts import is_greek_peak_window
     from tariff_engine.cost_calculator import calculate_realtime_cost
 except ImportError:
     # Fallbacks if running in isolation
-    def is_greek_peak_window(dt: datetime | None = None) -> bool:
+    def is_greek_peak_window(dt: datetime | None = None) -> bool:  # type: ignore[misc]
         if dt is None:
             dt = datetime.now(timezone.utc)
         if dt.weekday() >= 5:
@@ -61,15 +61,16 @@ except ImportError:
             return 14 <= h < 17
         return 17 <= h < 21
 
-    def calculate_realtime_cost(*args: Any, **kwargs: Any) -> Any:
+    def calculate_realtime_cost(*args: Any, **kwargs: Any) -> Any:  # type: ignore[misc]
         return None
 
 logger = logging.getLogger(__name__)
 
+settings: Any = None
 try:
     from backend.config import settings
 except ImportError:
-    settings = None
+    pass
 
 
 class AlertState(str, Enum):
@@ -522,10 +523,16 @@ class AlertDispatcher:
         else:
             self.telegram_client = MockTelegramClient()
 
+        viber_token = (
+            getattr(settings, "VIBER_BOT_TOKEN", None)
+            or getattr(settings, "VIBER_AUTH_TOKEN", None)
+            if settings
+            else None
+        )
         if viber_client is not None:
             self.viber_client: IViberClient | None = viber_client
-        elif settings and getattr(settings, "VIBER_AUTH_TOKEN", None):
-            self.viber_client = LiveViberClient(auth_token=settings.VIBER_AUTH_TOKEN)
+        elif viber_token:
+            self.viber_client = LiveViberClient(auth_token=viber_token)
         else:
             self.viber_client = MockViberClient()
 
@@ -815,7 +822,7 @@ class AlertDispatcher:
                 if "chat_id" in facility_config or "telegram_chat_id" in facility_config:
                     fsm_existing.chat_id = facility_config.get("chat_id") or facility_config.get("telegram_chat_id")
                 if "name" in facility_config or "facility_name" in facility_config:
-                    fsm_existing.facility_name = facility_config.get("name") or facility_config.get("facility_name")
+                    fsm_existing.facility_name = str(facility_config.get("name") or facility_config.get("facility_name") or fid)
                 if "peak_threshold_kw" in facility_config:
                     fsm_existing.peak_threshold_kw = float(facility_config["peak_threshold_kw"])
                 if "cooldown_seconds" in facility_config:
@@ -839,7 +846,7 @@ class AlertDispatcher:
                         power_kw=payload.total_active_power_kw,
                         energy_kwh_delta=0.0,
                         timestamp=dt,
-                        contract_profile=cost_res_or_profile,
+                        tariff_profile=cost_res_or_profile,
                     )
                     is_peak = is_greek_peak_window(dt)
                 except (ValueError, TypeError, KeyError, AttributeError) as exc:

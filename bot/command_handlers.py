@@ -17,7 +17,6 @@ from typing import Any
 
 from backend.models.telemetry import TelemetryPayload
 from bot.telegram_client import ITelegramClient
-from bot.templates_el import get_peak_window_str
 
 try:
     from tariff_engine.contracts import (
@@ -30,7 +29,7 @@ try:
     )
 except ImportError:
     # Standalone fallbacks
-    def is_greek_peak_window(dt: datetime | None = None) -> bool:
+    def is_greek_peak_window(dt: datetime | None = None) -> bool:  # type: ignore[misc]
         if dt is None:
             dt = datetime.now(timezone.utc)
         if dt.weekday() >= 5:
@@ -41,7 +40,7 @@ except ImportError:
             return 14 <= h < 17
         return 17 <= h < 21
 
-    def is_greek_offpeak_window(dt: datetime | None = None) -> bool:
+    def is_greek_offpeak_window(dt: datetime | None = None) -> bool:  # type: ignore[misc]
         if dt is None:
             dt = datetime.now(timezone.utc)
         h = dt.hour
@@ -50,14 +49,14 @@ except ImportError:
             return 23 <= h or h < 7
         return (2 <= h < 8) or (15 <= h < 17)
 
-    def get_greek_season(dt: datetime | None = None) -> str:
+    def get_greek_season(dt: datetime | None = None) -> Any:  # type: ignore[misc]
         if dt is None:
             dt = datetime.now(timezone.utc)
         return "SUMMER" if 5 <= dt.month <= 10 else "WINTER"
 
-    TariffContract = None
-    TariffColor = None
-    Season = None
+    TariffContract = None  # type: ignore[misc,assignment]
+    TariffColor = None  # type: ignore[misc,assignment]
+    Season = None  # type: ignore[misc,assignment]
 
 logger = logging.getLogger(__name__)
 
@@ -267,16 +266,16 @@ def format_greek_bot_response(
     # --------------------------------------------------------------------------
     elif cmd in ("/help", "help"):
         return (
-            f"<b>📖 Οδηγός Εντολών — Greek Commercial EMS</b>\n\n"
-            f"<b>/status</b> — Προβολή αναλυτικών μετρήσεων 3 φάσεων (τάσεις, ρεύματα, ενεργός kW, cos φ), "
-            f"τρέχοντος κόστους λειτουργίας ανά ώρα (€/h) και ενεργής ζώνης χρέωσης.\n\n"
-            f"<b>/cost_today</b> — Σημερινή συσσωρευμένη ενέργεια (kWh), συνολικό εκτιμώμενο κόστος (€), "
-            f"επιβάρυνση αιχμής και μέση τιμή ανά kWh.\n\n"
-            f"<b>/tariff</b> — Πληροφορίες σύμβασης ηλεκτρικής ενέργειας (Γ21/Γ22/Γ23, Χρώμα τιμολογίου, "
-            f"συμφωνημένη ισχύς, ωράριο ζώνης αιχμής και τρέχουσα χρέωση ενέργειας).\n\n"
-            f"<b>/settings</b> — Προβολή παραμέτρων προστασίας (όριο ισχύος kW, περίοδος cooldown, "
-            f"ποσοστό υστέρησης επαναφοράς και chat ID).\n\n"
-            f"<b>/start</b> — Επισκόπηση συστήματος και εισαγωγικό μήνυμα."
+            "<b>📖 Οδηγός Εντολών — Greek Commercial EMS</b>\n\n"
+            "<b>/status</b> — Προβολή αναλυτικών μετρήσεων 3 φάσεων (τάσεις, ρεύματα, ενεργός kW, cos φ), "
+            "τρέχοντος κόστους λειτουργίας ανά ώρα (€/h) και ενεργής ζώνης χρέωσης.\n\n"
+            "<b>/cost_today</b> — Σημερινή συσσωρευμένη ενέργεια (kWh), συνολικό εκτιμώμενο κόστος (€), "
+            "επιβάρυνση αιχμής και μέση τιμή ανά kWh.\n\n"
+            "<b>/tariff</b> — Πληροφορίες σύμβασης ηλεκτρικής ενέργειας (Γ21/Γ22/Γ23, Χρώμα τιμολογίου, "
+            "συμφωνημένη ισχύς, ωράριο ζώνης αιχμής και τρέχουσα χρέωση ενέργειας).\n\n"
+            "<b>/settings</b> — Προβολή παραμέτρων προστασίας (όριο ισχύος kW, περίοδος cooldown, "
+            "ποσοστό υστέρησης επαναφοράς και chat ID).\n\n"
+            "<b>/start</b> — Επισκόπηση συστήματος και εισαγωγικό μήνυμα."
         )
 
     # --------------------------------------------------------------------------

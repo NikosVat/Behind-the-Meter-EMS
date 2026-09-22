@@ -18,11 +18,23 @@ TelemetryClient::TelemetryClient()
       reconnect_attempts_(0),
       mqtt_client_(wifi_client_) {
     // Default network settings
-    strncpy(wifi_ssid_, "EMS_Commercial_WLAN", sizeof(wifi_ssid_));
-    strncpy(wifi_password_, "GreekEnergy2026", sizeof(wifi_password_));
-    strncpy(rest_base_url_, "http://127.0.0.1:8000", sizeof(rest_base_url_));
+#if __has_include("secrets.h")
+#include "secrets.h"
+#endif
+#ifndef WIFI_SSID
+#define WIFI_SSID ""
+#endif
+#ifndef WIFI_PASSWORD
+#define WIFI_PASSWORD ""
+#endif
+#ifndef EMS_API_BASE_URL
+#define EMS_API_BASE_URL "https://ems.local:8000"
+#endif
+    strncpy(wifi_ssid_, WIFI_SSID, sizeof(wifi_ssid_));
+    strncpy(wifi_password_, WIFI_PASSWORD, sizeof(wifi_password_));
+    strncpy(rest_base_url_, EMS_API_BASE_URL, sizeof(rest_base_url_));
     strncpy(rest_endpoint_, "/api/v1/telemetry", sizeof(rest_endpoint_));
-    strncpy(mqtt_broker_, "127.0.0.1", sizeof(mqtt_broker_));
+    strncpy(mqtt_broker_, "ems.local", sizeof(mqtt_broker_));
     strncpy(mqtt_topic_, "ems/telemetry", sizeof(mqtt_topic_));
     strncpy(device_id_, "esp32-ems-001", sizeof(device_id_));
     strncpy(facility_id_, "bakery-central-athens", sizeof(facility_id_));
@@ -146,8 +158,10 @@ String TelemetryClient::serializePayloadJson(const SystemPowerSnapshot& snapshot
     doc["device_id"] = device_id_;
     doc["facility_id"] = facility_id_;
     doc["timestamp"] = timestamp_str;
-    // CT-only hardware measures current; voltage and PF are configured assumptions.
-    doc["power_measurement_method"] = "estimated_nominal_voltage_pf";
+    // Mode provenance: "estimated_nominal_voltage_pf" (Mode A) vs "meter_measured" (Mode B)
+    doc["power_measurement_method"] = (snapshot.measurement_method && snapshot.measurement_method[0] != '\0')
+                                          ? snapshot.measurement_method
+                                          : "estimated_nominal_voltage_pf";
 
     // Phases dictionary
     JsonObject phases = doc.createNestedObject("phases");
@@ -187,6 +201,11 @@ String TelemetryClient::serializePayloadJson(const SystemPowerSnapshot& snapshot
     doc["grid_frequency_hz"] = roundf(snapshot.grid_frequency_hz * 100.0f) / 100.0f;
     doc["wifi_rssi_dbm"] = static_cast<float>(rssi_dbm);
 
+    if (predicted_next_kw >= 0.0f) {
+        doc["predicted_next_kw"] = roundf(predicted_next_kw * 1000.0f) / 1000.0f;
+        doc["projected_peak_breach"] = projected_peak_breach;
+    }
+
     String output;
     serializeJson(doc, output);
     return output;
@@ -214,15 +233,17 @@ bool TelemetryClient::sendMqttPayload(const String& json_payload) {
     return mqtt_client_.publish(mqtt_topic_, json_payload.c_str());
 }
 
-bool TelemetryClient::dispatchTelemetry(const SystemPowerSnapshot& snapshot) {
-    uint32_t now_epoch = static_cast<uint32_t>(time(nullptr));
+bool TelemetryClient::dispatchTelemetry(const SystemPowerSnapshot& snapshot, float predicted_next_kw, bool projected_peak_breach) {
+    uint32_t now_epoch = (snapshot.timestamp_epoch > 100000)
+                             ? snapshot.timestamp_epoch
+                             : static_cast<uint32_t>(time(nullptr));
     int8_t rssi = (WiFi.status() == WL_CONNECTED) ? static_cast<int8_t>(WiFi.RSSI()) : -85;
 
     // If connected and ring buffer is empty, attempt immediate direct transmission
     if (wifi_state_ == WiFiState::CONNECTED && ring_buffer_.isEmpty()) {
         char ts_buf[32];
         formatIsoTimestamp(now_epoch, ts_buf, sizeof(ts_buf));
-        String payload = serializePayloadJson(snapshot, ts_buf, rssi);
+        String payload = serializePayloadJson(snapshot, ts_buf, rssi, predicted_next_kw, projected_peak_breach);
 
         bool success = true;
         if (mode_ == TelemetryMode::REST_ONLY || mode_ == TelemetryMode::REST_AND_MQTT) {
@@ -242,6 +263,8 @@ bool TelemetryClient::dispatchTelemetry(const SystemPowerSnapshot& snapshot) {
     rec.power = snapshot;
     rec.timestamp_epoch = now_epoch;
     rec.rssi_dbm = rssi;
+    rec.predicted_next_kw = predicted_next_kw;
+    rec.projected_peak_breach = projected_peak_breach;
 
     ring_buffer_.push(rec);
     return false;
@@ -258,7 +281,7 @@ void TelemetryClient::flushQueue(uint8_t max_records_per_loop) {
     while (sent_count < max_records_per_loop && ring_buffer_.peek(rec)) {
         char ts_buf[32];
         formatIsoTimestamp(rec.timestamp_epoch, ts_buf, sizeof(ts_buf));
-        String payload = serializePayloadJson(rec.power, ts_buf, rec.rssi_dbm);
+        String payload = serializePayloadJson(rec.power, ts_buf, rec.rssi_dbm, rec.predicted_next_kw, rec.projected_peak_breach);
 
         bool success = true;
         if (mode_ == TelemetryMode::REST_ONLY || mode_ == TelemetryMode::REST_AND_MQTT) {

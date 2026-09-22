@@ -21,6 +21,23 @@ class Settings(BaseModel):
         default_factory=lambda: os.getenv("DEBUG", "true").lower() in ("true", "1", "yes")
     )
 
+    # Security and Access Control
+    API_KEY: str | None = Field(
+        default_factory=lambda: os.getenv("API_KEY", None)
+    )
+    ALLOWED_ORIGINS: list[str] = Field(
+        default_factory=lambda: [
+            origin.strip()
+            for origin in os.getenv(
+                "ALLOWED_ORIGINS",
+                "http://localhost:8000,http://127.0.0.1:8000,http://localhost:3000,http://127.0.0.1:3000",
+            ).split(",")
+            if origin.strip()
+        ]
+        if os.getenv("ENVIRONMENT") == "production"
+        else ["*"]
+    )
+
     # Database configuration
     DATABASE_URL: str = Field(
         default_factory=lambda: os.getenv("DATABASE_URL", "sqlite:///./ems.db")
@@ -41,7 +58,10 @@ class Settings(BaseModel):
 
     # Viber bot configuration
     VIBER_BOT_TOKEN: str = Field(
-        default_factory=lambda: os.getenv("VIBER_BOT_TOKEN", "")
+        default_factory=lambda: str(os.getenv("VIBER_BOT_TOKEN") or os.getenv("VIBER_AUTH_TOKEN") or "")
+    )
+    VIBER_AUTH_TOKEN: str = Field(
+        default_factory=lambda: str(os.getenv("VIBER_AUTH_TOKEN") or os.getenv("VIBER_BOT_TOKEN") or "")
     )
     VIBER_WEBHOOK_URL: str = Field(
         default_factory=lambda: os.getenv("VIBER_WEBHOOK_URL", "")

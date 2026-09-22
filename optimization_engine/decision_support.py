@@ -12,10 +12,9 @@ Components:
 
 from __future__ import annotations
 
-import uuid
 import math
+import uuid
 from datetime import datetime, timezone
-from typing import Dict, List, Optional
 
 from optimization_engine.models import (
     ActionRecommendation,
@@ -26,7 +25,6 @@ from optimization_engine.models import (
     PriorityLevel,
     ProductionBatchLoad,
     RecommendationCategory,
-    RecommendationStatus,
     ScheduleResult,
     VerificationRecord,
     VerificationStatus,
@@ -43,9 +41,9 @@ class DecisionSupportEngine:
         self,
         problem: OptimizationProblem,
         schedule: ScheduleResult,
-    ) -> List[ActionRecommendation]:
+    ) -> list[ActionRecommendation]:
         """Analyze optimization schedule and generate human-interpretable action cards."""
-        recommendations: List[ActionRecommendation] = []
+        recommendations: list[ActionRecommendation] = []
 
         if not schedule.is_optimal or not schedule.operationally_feasible:
             return recommendations
@@ -94,7 +92,7 @@ class DecisionSupportEngine:
         index: int,
         problem: OptimizationProblem,
         schedule: ScheduleResult,
-    ) -> Optional[ActionRecommendation]:
+    ) -> ActionRecommendation | None:
         dev_schedule = schedule.device_schedules.get(defrost.name, [])
         if not dev_schedule:
             return None
@@ -174,7 +172,7 @@ class DecisionSupportEngine:
         index: int,
         problem: OptimizationProblem,
         schedule: ScheduleResult,
-    ) -> Optional[ActionRecommendation]:
+    ) -> ActionRecommendation | None:
         dev_schedule = schedule.device_schedules.get(batch.name, [])
         if not dev_schedule:
             return None
@@ -256,7 +254,7 @@ class DecisionSupportEngine:
         index: int,
         problem: OptimizationProblem,
         schedule: ScheduleResult,
-    ) -> Optional[ActionRecommendation]:
+    ) -> ActionRecommendation | None:
         dev_schedule = schedule.device_schedules.get(hvac.name, [])
         if not dev_schedule:
             return None
@@ -329,7 +327,7 @@ class DecisionSupportEngine:
         bess: BESSLoad,
         problem: OptimizationProblem,
         schedule: ScheduleResult,
-    ) -> Optional[ActionRecommendation]:
+    ) -> ActionRecommendation | None:
         net_schedule = schedule.device_schedules.get(f"{bess.name} (Net)", [])
         if not net_schedule:
             return None

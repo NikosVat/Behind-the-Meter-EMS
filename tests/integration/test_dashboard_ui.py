@@ -67,6 +67,89 @@ def test_serve_dashboard_html(app_client: TestClient):
     assert "Chart.js" in html_content or "chart.umd.min.js" in html_content
 
 
+def test_schedule_studio_ui_elements_in_html(app_client: TestClient):
+    """Verify SME Schedule Studio elements, modal, controls, and advisory banner in dashboard HTML."""
+    response = app_client.get("/dashboard")
+    assert response.status_code == 200
+    html = response.text
+
+    # Tab navigation & advisory banner
+    assert "tabMonitoringBtn" in html
+    assert "tabScheduleBtn" in html
+    assert "scheduleTabContent" in html
+    assert "Συμβουλευτικός Προγραμματισμός Φορτίων" in html
+    assert "Advisory Only" in html
+
+    # Controls
+    assert "schedDate" in html
+    assert "schedResolution" in html
+    assert "schedMaxPower" in html
+    assert "schedObjective" in html
+    assert "btnPreviewSchedule" in html
+    assert "btnSaveSchedule" in html
+
+    # Assets table and templates
+    assert "assetsTableBody" in html
+    assert "applyQuickTemplate" in html
+
+    # Preview results & visualizations
+    assert "scheduleResultsSection" in html
+    assert "scheduleChartCanvas" in html
+    assert "ganttTimelineContainer" in html
+    assert "explanationsList" in html
+    assert "kpiSavingsEur" in html
+
+    # Modal
+    assert "assetModal" in html
+    assert "assetForm" in html
+    assert "handleAssetFormSubmit" in html
+
+
+def test_schedule_studio_tab_isolation_and_visibility(app_client: TestClient):
+    """Verify that scheduleTabContent is NOT nested inside monitoringTabContent.
+
+    Ensures that when switchTab('schedule') hides monitoringTabContent,
+    scheduleTabContent is an independent sibling under <main> and remains visible.
+    """
+    from html.parser import HTMLParser
+
+    class DOMHierarchyParser(HTMLParser):
+        def __init__(self):
+            super().__init__()
+            self.stack = []
+            self.parent_map = {}
+
+        def handle_starttag(self, tag, attrs):
+            attrs_dict = dict(attrs)
+            elem_id = attrs_dict.get("id", tag)
+            parent = self.stack[-1] if self.stack else None
+            self.parent_map[elem_id] = parent
+            self.stack.append(elem_id)
+
+        def handle_endtag(self, tag):
+            if self.stack:
+                self.stack.pop()
+
+    response = app_client.get("/dashboard")
+    assert response.status_code == 200
+
+    parser = DOMHierarchyParser()
+    parser.feed(response.text)
+
+    # 1. Both tabs must be direct children of <main>
+    assert parser.parent_map.get("monitoringTabContent") == "main"
+    assert parser.parent_map.get("scheduleTabContent") == "main"
+
+    # 2. Schedule Studio must NEVER be nested inside monitoringTabContent
+    assert parser.parent_map.get("scheduleTabContent") != "monitoringTabContent"
+
+    # 3. Modal must be cleanly located under <main>
+    assert parser.parent_map.get("assetModal") == "main"
+
+    # 4. No corrupted or unclosed tags
+    assert len(parser.stack) == 0
+
+
 def test_get_dashboard_metrics(app_client: TestClient):
     response = app_client.get("/api/v1/dashboard/metrics/bakery-central-athens")
     assert response.status_code == 200

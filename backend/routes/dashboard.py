@@ -9,17 +9,20 @@ Provides:
 from __future__ import annotations
 
 import logging
-import os
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Annotated, Any
 
-from fastapi import APIRouter, Depends, HTTPException, Request, status
+from fastapi import APIRouter, Depends, HTTPException, status
 from fastapi.responses import HTMLResponse
 from pydantic import BaseModel, Field
 
 from backend.database.sqlite_store import SQLiteStore
-from backend.routes.telemetry import AlertDispatcher, get_alert_dispatcher, get_database_store
+from backend.routes.telemetry import (
+    AlertDispatcher,
+    get_alert_dispatcher,
+    get_database_store,
+)
 from tariff_engine import is_greek_offpeak_window, is_greek_peak_window
 
 logger = logging.getLogger(__name__)

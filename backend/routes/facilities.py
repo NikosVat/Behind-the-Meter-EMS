@@ -15,10 +15,14 @@ from datetime import datetime, timezone
 from typing import Any
 
 from fastapi import APIRouter, Depends, HTTPException, Query, status
-from pydantic import BaseModel, Field
+from pydantic import BaseModel
 
 from backend.database.sqlite_store import SQLiteStore
-from backend.routes.telemetry import AlertDispatcher, get_alert_dispatcher, get_database_store
+from backend.routes.telemetry import (
+    AlertDispatcher,
+    get_alert_dispatcher,
+    get_database_store,
+)
 from tariff_engine import is_greek_offpeak_window, is_greek_peak_window
 
 logger = logging.getLogger(__name__)

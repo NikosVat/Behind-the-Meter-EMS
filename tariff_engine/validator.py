@@ -188,8 +188,8 @@ def compare_bill(
     return BillValidationResult(
         bill_id=calculated_bill.input_spec.bill_id,
         facility_id=calculated_bill.input_spec.facility_id,
-        contract_type=calculated_bill.input_spec.contract_type.value,
-        tariff_color=calculated_bill.input_spec.tariff_color.value,
+        contract_type=calculated_bill.input_spec.contract_type.value if hasattr(calculated_bill.input_spec.contract_type, "value") else str(calculated_bill.input_spec.contract_type),
+        tariff_color=calculated_bill.input_spec.tariff_color.value if hasattr(calculated_bill.input_spec.tariff_color, "value") else str(calculated_bill.input_spec.tariff_color),
         ground_truth_total_eur=round(gt_total, 2),
         calculated_total_eur=round(calc_total, 2),
         total_delta_eur=round(total_delta, 2),

@@ -15,7 +15,7 @@ Subject to:
 from __future__ import annotations
 
 import time
-from typing import Dict, List, Tuple
+
 import numpy as np
 from scipy.optimize import Bounds, LinearConstraint, milp
 
@@ -69,9 +69,9 @@ class ConstrainedLoadSolver:
                 c[idx_dis] += 0.001 * self.dt
 
         # 3. Build linear constraints
-        A_rows = []
-        lhs_bounds = []
-        rhs_bounds = []
+        A_rows: list[list[float]] = []
+        lhs_bounds: list[float] = []
+        rhs_bounds: list[float] = []
 
         self._build_power_balance_constraints(var_map, num_vars, A_rows, lhs_bounds, rhs_bounds)
         self._build_capacity_constraints(var_map, num_vars, A_rows, lhs_bounds, rhs_bounds)
@@ -81,7 +81,7 @@ class ConstrainedLoadSolver:
         self._build_bess_constraints(var_map, num_vars, A_rows, lhs_bounds, rhs_bounds)
 
         if A_rows:
-            A = np.array(A_rows, dtype=float)
+            A = np.array(A_rows, dtype=np.float64)
             constraints = LinearConstraint(A, lhs_bounds, rhs_bounds)
         else:
             constraints = []
@@ -96,8 +96,8 @@ class ConstrainedLoadSolver:
         # 5. Extract results & compare with baseline
         return self._build_result(res, var_map, solve_time_ms)
 
-    def _build_variables(self) -> Tuple[Dict[str, int], int, np.ndarray, np.ndarray, np.ndarray]:
-        var_map: Dict[str, int] = {}
+    def _build_variables(self) -> tuple[dict[str, int], int, np.ndarray, np.ndarray, np.ndarray]:
+        var_map: dict[str, int] = {}
         idx = 0
 
         # P_total[t] >= 0
@@ -482,7 +482,7 @@ class ConstrainedLoadSolver:
         peak_reduction_kw = round(max(0.0, peak_baseline_kw - peak_opt_kw), 2)
 
         # Device schedules
-        device_schedules: Dict[str, List[float]] = {}
+        device_schedules: dict[str, list[float]] = {}
         for i, d in enumerate(self.problem.defrost_loads):
             if d.duration_hours > 1:
                 device_schedules[d.name] = [
@@ -501,7 +501,7 @@ class ConstrainedLoadSolver:
                 for t in range(self.H)
             ]
 
-        hvac_temps: Dict[str, List[float]] = {}
+        hvac_temps: dict[str, list[float]] = {}
         for j, h in enumerate(self.problem.hvac_loads):
             device_schedules[h.name] = [
                 round(float(sol[var_map[f"hvac_p_{j}_{t}"]]), 2)
@@ -512,7 +512,7 @@ class ConstrainedLoadSolver:
                 for t in range(self.H + 1)
             ]
 
-        bess_soc_hist: List[float] = []
+        bess_soc_hist: list[float] = []
         if self.problem.bess is not None:
             bess = self.problem.bess
             chg = [round(float(sol[var_map[f"bess_chg_{t}"]]), 2) for t in range(self.H)]
