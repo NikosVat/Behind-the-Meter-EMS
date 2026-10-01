@@ -19,11 +19,23 @@ from __future__ import annotations
 from dataclasses import dataclass
 
 
-def _normalize_to_kwh(val: float) -> float:
-    """Normalizes price from €/MWh to €/kWh if val > 1.0, otherwise assumes €/kWh."""
-    if abs(val) > 1.0:
+from typing import Literal
+
+PriceUnit = Literal["EUR_MWH", "EUR_KWH"]
+
+
+def to_kwh_rate(val: float, unit: PriceUnit = "EUR_MWH") -> float:
+    """Converts price to €/kWh with strict unit validation."""
+    if unit == "EUR_MWH":
         return val / 1000.0
-    return val
+    elif unit == "EUR_KWH":
+        return val
+    raise ValueError(f"Unsupported price unit '{unit}'. Must be 'EUR_MWH' or 'EUR_KWH'.")
+
+
+def _normalize_to_kwh(val: float) -> float:
+    """Deprecated: normalizes price to €/kWh assuming EUR_MWH."""
+    return to_kwh_rate(val, "EUR_MWH")
 
 
 def calculate_green_tariff_fluctuation(
@@ -33,6 +45,7 @@ def calculate_green_tariff_fluctuation(
     alpha: float = 1.15,
     beta: float = 0.0,
     tea_m2_eur_mwh: float | None = None,
+    unit: PriceUnit = "EUR_MWH",
 ) -> float:
     """
     Computes Green Tariff Fluctuation Mechanism MD(M) per Law 5068/2023 & MD ΥΠΕΝ.
@@ -45,18 +58,19 @@ def calculate_green_tariff_fluctuation(
         beta: Historical adjustment factor β (€/kWh). If 0.0 and tea_m2_eur_mwh is supplied,
               calculated as α * (TEA_{M-1} - TEA_{M-2}).
         tea_m2_eur_mwh: Mean DAM Clearing Price of month M-2 (€/MWh or €/kWh).
+        unit: Price unit of tea_eur_mwh ('EUR_MWH' or 'EUR_KWH', default 'EUR_MWH').
 
     Returns:
         Fluctuation Mechanism adjustment MD in €/kWh (can be positive, zero, or negative).
     """
-    tea_kwh = _normalize_to_kwh(tea_eur_mwh)
-    ll_kwh = _normalize_to_kwh(ll_eur_mwh)
-    lu_kwh = _normalize_to_kwh(lu_eur_mwh)
+    tea_kwh = to_kwh_rate(tea_eur_mwh, unit)
+    ll_kwh = to_kwh_rate(ll_eur_mwh, "EUR_MWH")
+    lu_kwh = to_kwh_rate(lu_eur_mwh, "EUR_MWH")
 
     # Compute beta if tea_m2 is provided and beta was not explicitly set
     effective_beta = beta
     if tea_m2_eur_mwh is not None and beta == 0.0:
-        tea_m2_kwh = _normalize_to_kwh(tea_m2_eur_mwh)
+        tea_m2_kwh = to_kwh_rate(tea_m2_eur_mwh, "EUR_MWH")
         effective_beta = alpha * (tea_kwh - tea_m2_kwh)
 
     if tea_kwh > lu_kwh:
@@ -81,6 +95,7 @@ def calculate_green_tariff_supply_rate(
     prompt_discount_percent: float | None = None,
     fixed_monthly_fee_eur: float = 0.0,
     monthly_kwh: float = 0.0,
+    unit: PriceUnit = "EUR_MWH",
 ) -> float:
     """
     Computes the total Green Tariff supply price:
@@ -98,6 +113,7 @@ def calculate_green_tariff_supply_rate(
         prompt_discount_percent: Optional prompt payment discount percentage (0-100%).
         fixed_monthly_fee_eur: Monthly fixed charge in € (capped at <= 5.00 €/mo).
         monthly_kwh: Estimated or actual monthly consumption in kWh to amortize fixed fee.
+        unit: Price unit of tea_eur_mwh ('EUR_MWH' or 'EUR_KWH', default 'EUR_MWH').
 
     Returns:
         Final green supply rate in €/kWh rounded to 5 decimal places (floored at 0.0).
@@ -109,6 +125,7 @@ def calculate_green_tariff_supply_rate(
         alpha=alpha,
         beta=beta,
         tea_m2_eur_mwh=tea_m2_eur_mwh,
+        unit=unit,
     )
 
     # Calculate effective discount
@@ -142,6 +159,7 @@ class GreenTariffEngine:
         tea_eur_mwh: float,
         beta: float = 0.0,
         tea_m2_eur_mwh: float | None = None,
+        unit: PriceUnit = "EUR_MWH",
     ) -> float:
         return calculate_green_tariff_fluctuation(
             tea_eur_mwh=tea_eur_mwh,
@@ -150,6 +168,7 @@ class GreenTariffEngine:
             alpha=self.alpha,
             beta=beta,
             tea_m2_eur_mwh=tea_m2_eur_mwh,
+            unit=unit,
         )
 
     def compute_supply_rate(
@@ -158,6 +177,7 @@ class GreenTariffEngine:
         beta: float = 0.0,
         tea_m2_eur_mwh: float | None = None,
         monthly_kwh: float = 0.0,
+        unit: PriceUnit = "EUR_MWH",
     ) -> float:
         e_disc = self.prompt_discount_eur_kwh
         disc_pct = self.prompt_discount_percent if self.prompt_discount_percent > 0 else None
@@ -173,4 +193,6 @@ class GreenTariffEngine:
             prompt_discount_percent=disc_pct,
             fixed_monthly_fee_eur=self.fixed_monthly_fee_eur,
             monthly_kwh=monthly_kwh,
+            unit=unit,
         )
+

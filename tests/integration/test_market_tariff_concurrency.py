@@ -561,11 +561,12 @@ class TestCachePerformanceAndProgression:
         calc_md_0_5 = calculate_green_tariff_fluctuation(
             tea_eur_mwh=0.50, ll_eur_mwh=95.0, lu_eur_mwh=115.0, alpha=1.15
         )
-        # We verify and document this anomaly:
-        # It triggers upper breach (>0) instead of lower breach (<0)
-        assert calc_md_0_5 > 0.0, "Heuristic misidentifies 0.50 €/MWh as 0.50 €/kWh"
+        # With explicit unit conversion, TEA=0.50 €/MWh is recognized as 0.00050 €/kWh,
+        # correctly triggering lower breach rebate (MD < 0) rather than an upper breach surcharge.
+        assert calc_md_0_5 < 0.0, "TEA = 0.50 €/MWh must be recognized as lower breach rebate"
+        assert pytest.approx(calc_md_0_5, rel=1e-4) == -0.108675
 
-        # In contrast, TEA = 2.0 €/MWh has abs(2.0) > 1.0, so 2.0/1000 = 0.002 €/kWh < 0.095:
+        # In contrast, TEA = 2.0 €/MWh has 2.0/1000 = 0.002 €/kWh < 0.095:
         calc_md_2_0 = calculate_green_tariff_fluctuation(
             tea_eur_mwh=2.0, ll_eur_mwh=95.0, lu_eur_mwh=115.0, alpha=1.15
         )

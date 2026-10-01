@@ -66,3 +66,53 @@ class TestTimezoneRegressions:
         dt_utc = datetime(2026, 10, 1, 22, 30, 0, tzinfo=timezone.utc)
         price = service.get_effective_tea(dt_utc, tariff_color="yellow")
         assert price == 155.0
+
+
+from tariff_engine.yellow_dynamic import calculate_yellow_dynamic_supply_rate, to_kwh_rate
+from tariff_engine.green_tariff import calculate_green_tariff_fluctuation, calculate_green_tariff_supply_rate
+
+
+class TestPricingUnitsRegressions:
+    def test_low_positive_tea_yellow_dynamic_rate(self):
+        """TEA = 0.50 €/MWh must convert to 0.00050 €/kWh, yielding 0.06557 €/kWh, NOT 0.6325 €/kWh."""
+        rate = calculate_yellow_dynamic_supply_rate(
+            tea_eur_mwh=0.50,
+            loss_factor=0.135,
+            margin_eur_kwh=0.015,
+            p_base=0.050,
+        )
+        assert rate == 0.06557
+
+    def test_continuity_across_one_euro_boundary(self):
+        """Ensure no 1000x jump between 0.99 €/MWh and 1.01 €/MWh."""
+        rate_0_99 = calculate_yellow_dynamic_supply_rate(tea_eur_mwh=0.99)
+        rate_1_01 = calculate_yellow_dynamic_supply_rate(tea_eur_mwh=1.01)
+        assert abs(rate_1_01 - rate_0_99) < 0.0001
+
+    def test_green_tariff_fluctuation_solar_surplus_rebate(self):
+        """TEA = 0.50 €/MWh is far below Ll = 95.0 €/MWh, so MD must be a negative rebate."""
+        md = calculate_green_tariff_fluctuation(
+            tea_eur_mwh=0.50,
+            ll_eur_mwh=95.0,
+            lu_eur_mwh=115.0,
+            alpha=1.15,
+        )
+        # Expected: 1.15 * (0.00050 - 0.095) = -0.108675 €/kWh
+        assert pytest.approx(md, rel=1e-4) == -0.108675
+
+    def test_zero_and_negative_wholesale_prices(self):
+        """Zero and negative wholesale prices calculate linearly without exception."""
+        rate_zero = calculate_yellow_dynamic_supply_rate(tea_eur_mwh=0.0, floor_at_zero=False)
+        assert rate_zero == 0.06500
+
+        rate_neg = calculate_yellow_dynamic_supply_rate(tea_eur_mwh=-20.0, floor_at_zero=False)
+        # -0.020 * 1.135 + 0.015 + 0.050 = -0.0227 + 0.065 = 0.04230
+        assert rate_neg == 0.04230
+
+    def test_explicit_price_unit_conversion(self):
+        """Verify to_kwh_rate with EUR_MWH and EUR_KWH."""
+        assert to_kwh_rate(100.0, "EUR_MWH") == 0.100
+        assert to_kwh_rate(0.150, "EUR_KWH") == 0.150
+        with pytest.raises(ValueError, match="Unsupported price unit"):
+            to_kwh_rate(100.0, "INVALID")
+
