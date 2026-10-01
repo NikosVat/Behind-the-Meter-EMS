@@ -13,7 +13,7 @@ from pydantic import BaseModel, ConfigDict, Field, field_validator, model_valida
 class PhaseReading(BaseModel):
     """Telemetry reading for an individual electrical phase (L1, L2, or L3)."""
 
-    model_config = ConfigDict(extra="forbid")
+    model_config = ConfigDict(extra="forbid", allow_inf_nan=False)
 
     voltage_v: float = Field(
         ...,
@@ -73,7 +73,7 @@ class TelemetryPayload(BaseModel):
     Validates multi-phase sum conservation: |total_active_power_kw - sum(phases[Li])| <= 0.05 kW.
     """
 
-    model_config = ConfigDict(extra="forbid")
+    model_config = ConfigDict(extra="forbid", allow_inf_nan=False)
 
     power_measurement_method: Literal["unknown", "estimated_nominal_voltage_pf", "meter_measured", "simulated"] = Field(
         default="unknown", description="Source-reported provenance; not a calibration certificate")
