@@ -72,6 +72,29 @@ class DecisionSupportEngine:
             if rec:
                 recommendations.append(rec)
 
+        # 5. Capacity Breach Alert (Unmitigated)
+        if schedule.capacity_breached_optimized:
+            breach_kw = max(0.0, schedule.peak_optimized_kw - problem.contracted_capacity_kw)
+            peak_hour = schedule.optimized_total_load_kw.index(schedule.peak_optimized_kw)
+            recommendations.append(
+                ActionRecommendation(
+                    recommendation_id=f"rec_breach_{uuid.uuid4().hex[:8]}",
+                    facility_id=self.facility_id,
+                    category=RecommendationCategory.PEAK_SHAVING,
+                    priority=PriorityLevel.CRITICAL,
+                    title=f"Capacity Breach Alert: {breach_kw:.1f} kW Unmitigated",
+                    description_el=f"Η ζήτηση προβλέπεται στα {schedule.peak_optimized_kw:.1f} kW την ώρα {peak_hour:02d}:00 (όριο: {problem.contracted_capacity_kw:.1f} kW). Οι ευέλικτες μετατοπίσεις δεν επαρκούν.",
+                    description_en=f"Projected demand reaches {schedule.peak_optimized_kw:.1f} kW at hour {peak_hour:02d}:00 exceeding contracted {problem.contracted_capacity_kw:.1f} kW. Flexible load shifting alone cannot resolve this breach; manual shedding or contract review required.",
+                    asset_name="Whole Facility Demand",
+                    original_window=f"{peak_hour:02d}:00-{(peak_hour+1):02d}:00",
+                    recommended_window=f"{peak_hour:02d}:00-{(peak_hour+1):02d}:00",
+                    peak_load_avoided_kw=0.0,
+                    estimated_savings_eur=0.0,
+                    contracted_capacity_kw=problem.contracted_capacity_kw,
+                    projected_peak_kw=schedule.peak_optimized_kw,
+                )
+            )
+
         # Sort recommendations by priority and estimated savings
         priority_weights = {
             PriorityLevel.CRITICAL: 4,
@@ -114,23 +137,24 @@ class DecisionSupportEngine:
         rate_diff = max(0.0, nominal_rate - opt_rate)
         energy_savings = rate_diff * defrost.power_kw * defrost.duration_hours
 
+        # Net contractual demand savings (only if contract demand rate > 0 and baseline peak dropped)
+        demand_savings = 0.0
+        if problem.contracted_demand_rate_eur_per_kw > 0.0:
+            net_peak_drop = max(0.0, schedule.peak_baseline_kw - max(problem.contracted_capacity_kw, schedule.peak_optimized_kw))
+            baseline_peak_hour = schedule.baseline_total_load_kw.index(schedule.peak_baseline_kw)
+            if net_peak_drop > 0.0 and nominal_start == baseline_peak_hour:
+                demand_savings = min(defrost.power_kw, net_peak_drop) * problem.contracted_demand_rate_eur_per_kw
+
+        total_savings = round(energy_savings + demand_savings, 2)
+
         # Capacity avoidance check
         baseline_at_nominal = schedule.baseline_total_load_kw[nominal_start]
         capacity_avoided = baseline_at_nominal > problem.contracted_capacity_kw
-        avoided_surcharge = 0.0
-        if capacity_avoided:
-            avoided_surcharge = (
-                min(defrost.power_kw, baseline_at_nominal - problem.contracted_capacity_kw)
-                * problem.capacity_penalty_eur_per_kw
-            )
 
-        total_savings = round(energy_savings + avoided_surcharge, 2)
         if total_savings < 1.0 and not capacity_avoided:
             return None
 
-        priority = PriorityLevel.CRITICAL if capacity_avoided else (
-            PriorityLevel.HIGH if total_savings > 10.0 else PriorityLevel.MEDIUM
-        )
+        priority = PriorityLevel.HIGH if (capacity_avoided or total_savings > 10.0) else PriorityLevel.MEDIUM
 
         orig_w = f"{nominal_start:02d}:00-{(nominal_start + defrost.duration_hours):02d}:00"
         opt_w = f"{opt_start:02d}:00-{(opt_start + defrost.duration_hours):02d}:00"
@@ -198,23 +222,24 @@ class DecisionSupportEngine:
         )
         energy_savings = max(0.0, baseline_batch_cost - opt_batch_cost)
 
+        # Net contractual demand savings (only if contract demand rate > 0 and baseline peak dropped)
+        demand_savings = 0.0
+        if problem.contracted_demand_rate_eur_per_kw > 0.0:
+            net_peak_drop = max(0.0, schedule.peak_baseline_kw - max(problem.contracted_capacity_kw, schedule.peak_optimized_kw))
+            baseline_peak_hour = schedule.baseline_total_load_kw.index(schedule.peak_baseline_kw)
+            if net_peak_drop > 0.0 and orig_start <= baseline_peak_hour < orig_start + batch.duration_hours:
+                demand_savings = min(batch.power_kw, net_peak_drop) * problem.contracted_demand_rate_eur_per_kw
+
+        total_savings = round(energy_savings + demand_savings, 2)
+
         # Capacity breach avoided?
         max_base = max(schedule.baseline_total_load_kw[t] for t in range(orig_start, orig_start + batch.duration_hours))
         capacity_avoided = max_base > problem.contracted_capacity_kw
-        avoided_surcharge = 0.0
-        if capacity_avoided:
-            avoided_surcharge = (
-                min(batch.power_kw, max_base - problem.contracted_capacity_kw)
-                * problem.capacity_penalty_eur_per_kw
-            )
 
-        total_savings = round(energy_savings + avoided_surcharge, 2)
         if total_savings < 1.0 and not capacity_avoided:
             return None
 
-        priority = PriorityLevel.CRITICAL if capacity_avoided else (
-            PriorityLevel.HIGH if total_savings > 15.0 else PriorityLevel.MEDIUM
-        )
+        priority = PriorityLevel.HIGH if (capacity_avoided or total_savings > 15.0) else PriorityLevel.MEDIUM
 
         orig_w = f"{orig_start:02d}:00-{(orig_start + batch.duration_hours):02d}:00"
         opt_w = f"{opt_start:02d}:00-{(opt_start + batch.duration_hours):02d}:00"

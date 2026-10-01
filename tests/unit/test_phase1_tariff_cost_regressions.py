@@ -116,3 +116,174 @@ class TestPricingUnitsRegressions:
         with pytest.raises(ValueError, match="Unsupported price unit"):
             to_kwh_rate(100.0, "INVALID")
 
+
+from optimization_engine.decision_support import DecisionSupportEngine
+from optimization_engine.models import (
+    DefrostLoad,
+    OptimizationProblem,
+    PriorityLevel,
+    ProductionBatchLoad,
+    RecommendationCategory,
+    ScheduleResult,
+)
+
+
+class TestDecisionSupportSavingsRegressions:
+    def test_reproduce_finding_2_capacity_savings_not_overstated(self):
+        """Scenario: 40 kW flat background, 35 kW capacity, 6.8 kW defrost shifted from hr 14 to hr 11.
+        Baseline peak = 46.8 kW. Optimized peak = 46.8 kW (breach persists at other hours).
+        Old code claimed EUR 127.16 savings by multiplying 6.8 kW * capacity_penalty_eur_per_kw.
+        New code must claim ONLY the true energy shift savings (EUR 1.36) and avoid claiming false demand savings.
+        """
+        engine = DecisionSupportEngine(facility_id="fac_test_01")
+        tariffs = [0.15] * 24
+        tariffs[14] = 0.35  # expensive nominal defrost window
+        tariffs[11] = 0.15  # cheap optimal defrost window
+
+        problem = OptimizationProblem(
+            baseline_load_kw=[40.0] * 24,
+            tariff_rates_eur_kwh=tariffs,
+            contracted_capacity_kw=35.0,
+            capacity_penalty_eur_per_kw=18.50,
+            defrost_loads=[DefrostLoad(name="Freezer Rack", nominal_start_hour=14, duration_hours=1, power_kw=6.8)],
+        )
+
+        dev_sched = [0.0] * 24
+        dev_sched[11] = 6.8  # shifted to 11
+        schedule = ScheduleResult(
+            status="optimal",
+            is_optimal=True,
+            horizon_hours=24,
+            baseline_total_load_kw=[40.0 + (6.8 if t == 14 else 0.0) for t in range(24)],
+            optimized_total_load_kw=[40.0 + (6.8 if t == 11 else 0.0) for t in range(24)],
+            baseline_cost_eur=146.36,
+            optimized_cost_eur=145.00,
+            savings_eur=1.36,
+            savings_pct=0.93,
+            peak_baseline_kw=46.8,
+            peak_optimized_kw=46.8,
+            peak_reduction_kw=0.0,
+            capacity_breached_baseline=True,
+            capacity_breached_optimized=True,
+            device_schedules={"Freezer Rack": dev_sched},
+            operationally_feasible=True,
+        )
+
+        recs = engine.generate_recommendations(problem, schedule)
+        defrost_recs = [r for r in recs if r.category == RecommendationCategory.DEFROST_SHIFT]
+        assert len(defrost_recs) == 1
+        rec = defrost_recs[0]
+
+        # Must report exact energy delta (EUR 1.36), NOT inflated penalty surcharge (EUR 127.16)
+        assert rec.estimated_savings_eur == 1.36
+        assert rec.peak_load_avoided_kw == 6.8
+
+        # Must generate critical warning card for unmitigated breach
+        warning_recs = [r for r in recs if r.priority == PriorityLevel.CRITICAL and "Capacity Breach" in r.title]
+        assert len(warning_recs) >= 1
+        assert "46.8" in warning_recs[0].description_en or "11.8" in warning_recs[0].description_en
+
+    def test_genuine_demand_savings_with_contract_rate(self):
+        """When the entire facility peak drops and contract demand rate is provided, credit demand savings."""
+        engine = DecisionSupportEngine(facility_id="fac_test_01")
+        tariffs = [0.20] * 24
+
+        # Background load is 30 kW. Hour 14 has defrost (6.8 kW), totaling 36.8 kW (breaches 35 kW).
+        # Shifting to hour 2 brings hour 14 to 30 kW and hour 2 to 36.8 kW? No, background at hour 2 is 20 kW!
+        baseline_load = [20.0] * 24
+        baseline_load[14] = 30.0  # hour 14 background 30 kW + 6.8 = 36.8 kW peak of day
+        # When defrost moves to hr 2 (20 kW + 6.8 kW = 26.8 kW), new peak of day is 30.0 kW (at hr 14).
+        # Daily peak dropped from 36.8 kW to 30.0 kW! Peak reduction = 6.8 kW.
+        # Demand savings = 6.8 kW * contract_rate (e.g. 2.0 EUR/kW) = 13.60 EUR.
+        problem = OptimizationProblem(
+            baseline_load_kw=baseline_load,
+            tariff_rates_eur_kwh=tariffs,
+            contracted_capacity_kw=35.0,
+            contracted_demand_rate_eur_per_kw=2.0,
+            defrost_loads=[DefrostLoad(name="Freezer Rack", nominal_start_hour=14, duration_hours=1, power_kw=6.8)],
+        )
+
+        dev_sched = [0.0] * 24
+        dev_sched[2] = 6.8
+        base_tot = [baseline_load[t] + (6.8 if t == 14 else 0.0) for t in range(24)]
+        opt_tot = [baseline_load[t] + (6.8 if t == 2 else 0.0) for t in range(24)]
+
+        schedule = ScheduleResult(
+            status="optimal",
+            is_optimal=True,
+            horizon_hours=24,
+            baseline_total_load_kw=base_tot,
+            optimized_total_load_kw=opt_tot,
+            baseline_cost_eur=100.0,
+            optimized_cost_eur=100.0,
+            savings_eur=0.0,
+            savings_pct=0.0,
+            peak_baseline_kw=36.8,
+            peak_optimized_kw=30.0,
+            peak_reduction_kw=6.8,
+            capacity_breached_baseline=True,
+            capacity_breached_optimized=False,
+            device_schedules={"Freezer Rack": dev_sched},
+            operationally_feasible=True,
+        )
+
+        recs = engine.generate_recommendations(problem, schedule)
+        defrost_recs = [r for r in recs if r.category == RecommendationCategory.DEFROST_SHIFT]
+        assert len(defrost_recs) == 1
+        # Energy delta = 0 (flat tariff), demand savings = min(6.8, 36.8 - 35.0) or min(6.8, 36.8 - 30.0) * 2.0
+        assert defrost_recs[0].estimated_savings_eur > 0.0
+
+    def test_batch_shift_demand_savings_and_no_inflated_penalty(self):
+        """Batch load shift must not inflate savings with penalty weights and should credit contract demand savings."""
+        engine = DecisionSupportEngine(facility_id="fac_test_01")
+        tariffs = [0.15] * 24
+
+        baseline_load = [20.0] * 24
+        baseline_load[10] = 30.0  # hour 10 background 30 kW
+        # Batch load is 10 kW, 2 hours, earliest 10 (so hours 10 and 11).
+        # Baseline total at hr 10 = 30 + 10 = 40 kW (breaches 35 kW).
+        # Optimized shifted to hr 14..16 where background is 20 kW -> peak 30 kW.
+        problem = OptimizationProblem(
+            baseline_load_kw=baseline_load,
+            tariff_rates_eur_kwh=tariffs,
+            contracted_capacity_kw=35.0,
+            contracted_demand_rate_eur_per_kw=2.5,
+            capacity_penalty_eur_per_kw=18.50,
+            batch_loads=[ProductionBatchLoad(name="Oven 1", earliest_start_hour=10, latest_start_hour=18, duration_hours=2, power_kw=10.0)],
+        )
+
+        dev_sched = [0.0] * 24
+        dev_sched[14] = 10.0
+        dev_sched[15] = 10.0
+        base_tot = [baseline_load[t] + (10.0 if t in (10, 11) else 0.0) for t in range(24)]
+        opt_tot = [baseline_load[t] + (10.0 if t in (14, 15) else 0.0) for t in range(24)]
+
+        schedule = ScheduleResult(
+            status="optimal",
+            is_optimal=True,
+            horizon_hours=24,
+            baseline_total_load_kw=base_tot,
+            optimized_total_load_kw=opt_tot,
+            baseline_cost_eur=100.0,
+            optimized_cost_eur=100.0,
+            savings_eur=0.0,
+            savings_pct=0.0,
+            peak_baseline_kw=40.0,
+            peak_optimized_kw=30.0,
+            peak_reduction_kw=10.0,
+            capacity_breached_baseline=True,
+            capacity_breached_optimized=False,
+            device_schedules={"Oven 1": dev_sched},
+            operationally_feasible=True,
+        )
+
+        recs = engine.generate_recommendations(problem, schedule)
+        batch_recs = [r for r in recs if r.category == RecommendationCategory.BATCH_SCHEDULING]
+        assert len(batch_recs) == 1
+        # Net peak drop = 40.0 - max(35.0, 30.0) = 5.0 kW.
+        # Demand savings = min(10.0, 5.0) * 2.5 = 12.50 EUR.
+        # Old code would have added (min(10, 40-35) * 18.50) = 92.50 EUR.
+        assert batch_recs[0].estimated_savings_eur == 12.50
+        assert batch_recs[0].peak_load_avoided_kw == 10.0
+
+

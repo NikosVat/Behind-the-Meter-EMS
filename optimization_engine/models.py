@@ -134,6 +134,7 @@ class OptimizationProblem:
     baseline_load_kw: list[float] = field(default_factory=lambda: [10.0] * 24)
     tariff_rates_eur_kwh: list[float] = field(default_factory=lambda: [0.15] * 24)
     contracted_capacity_kw: float = 35.0
+    contracted_demand_rate_eur_per_kw: float = 0.0
     capacity_penalty_eur_per_kw: float = 18.50  # DEDDIE capacity excess demand surcharge
     defrost_loads: list[DefrostLoad] = field(default_factory=list)
     hvac_loads: list[HVACLoad] = field(default_factory=list)
