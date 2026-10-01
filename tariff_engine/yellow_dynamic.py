@@ -13,18 +13,7 @@ from __future__ import annotations
 from dataclasses import dataclass
 
 
-from typing import Literal
-
-PriceUnit = Literal["EUR_MWH", "EUR_KWH"]
-
-
-def to_kwh_rate(val: float, unit: PriceUnit = "EUR_MWH") -> float:
-    """Converts price to €/kWh with strict unit validation."""
-    if unit == "EUR_MWH":
-        return val / 1000.0
-    elif unit == "EUR_KWH":
-        return val
-    raise ValueError(f"Unsupported price unit '{unit}'. Must be 'EUR_MWH' or 'EUR_KWH'.")
+from tariff_engine.units import PriceUnit, to_kwh_rate
 
 
 def _normalize_to_kwh(val: float) -> float:

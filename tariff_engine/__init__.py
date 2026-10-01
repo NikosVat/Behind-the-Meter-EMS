@@ -102,6 +102,10 @@ from .validator import (
     compare_bill,
     validate_benchmark_suite,
 )
+from .units import (
+    PriceUnit,
+    to_kwh_rate,
+)
 from .yellow_dynamic import (
     YellowDynamicEngine,
     calculate_dynamic_tariff,
@@ -121,6 +125,7 @@ __all__ = [
     "ETMEAR_LV_RATE_EUR_KWH",
     "ETMEAR_MV_RATE_EUR_KWH",
     "POWER_FACTOR_THRESHOLD",
+    "PriceUnit",
     "VAT_RATE",
     "YKO_RATE_EUR_KWH",
     "BaseMarketAdapter",
@@ -190,6 +195,7 @@ __all__ = [
     "list_benchmark_bill_ids",
     "register_default_adapters",
     "resolve_effective_tea",
+    "to_kwh_rate",
     "validate_benchmark_suite",
 ]
 

@@ -141,8 +141,8 @@ class DecisionSupportEngine:
         demand_savings = 0.0
         if problem.contracted_demand_rate_eur_per_kw > 0.0:
             net_peak_drop = max(0.0, schedule.peak_baseline_kw - max(problem.contracted_capacity_kw, schedule.peak_optimized_kw))
-            baseline_peak_hour = schedule.baseline_total_load_kw.index(schedule.peak_baseline_kw)
-            if net_peak_drop > 0.0 and nominal_start == baseline_peak_hour:
+            is_at_baseline_peak = abs(schedule.baseline_total_load_kw[nominal_start] - schedule.peak_baseline_kw) < 1e-4
+            if net_peak_drop > 0.0 and is_at_baseline_peak:
                 demand_savings = min(defrost.power_kw, net_peak_drop) * problem.contracted_demand_rate_eur_per_kw
 
         total_savings = round(energy_savings + demand_savings, 2)
@@ -226,8 +226,8 @@ class DecisionSupportEngine:
         demand_savings = 0.0
         if problem.contracted_demand_rate_eur_per_kw > 0.0:
             net_peak_drop = max(0.0, schedule.peak_baseline_kw - max(problem.contracted_capacity_kw, schedule.peak_optimized_kw))
-            baseline_peak_hour = schedule.baseline_total_load_kw.index(schedule.peak_baseline_kw)
-            if net_peak_drop > 0.0 and orig_start <= baseline_peak_hour < orig_start + batch.duration_hours:
+            is_at_baseline_peak = any(abs(schedule.baseline_total_load_kw[t] - schedule.peak_baseline_kw) < 1e-4 for t in range(orig_start, orig_start + batch.duration_hours))
+            if net_peak_drop > 0.0 and is_at_baseline_peak:
                 demand_savings = min(batch.power_kw, net_peak_drop) * problem.contracted_demand_rate_eur_per_kw
 
         total_savings = round(energy_savings + demand_savings, 2)

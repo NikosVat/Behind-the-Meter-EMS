@@ -116,6 +116,14 @@ class TestPricingUnitsRegressions:
         with pytest.raises(ValueError, match="Unsupported price unit"):
             to_kwh_rate(100.0, "INVALID")
 
+    def test_units_module_centralization(self):
+        """Verify tariff_engine.units exposes PriceUnit and to_kwh_rate with strict validation."""
+        from tariff_engine.units import PriceUnit as UnitType, to_kwh_rate as units_to_kwh_rate
+        assert units_to_kwh_rate(250.0, "EUR_MWH") == 0.250
+        assert units_to_kwh_rate(0.250, "EUR_KWH") == 0.250
+        with pytest.raises(ValueError, match="Unsupported price unit"):
+            units_to_kwh_rate(100.0, "BAD_UNIT")
+
 
 from optimization_engine.decision_support import DecisionSupportEngine
 from optimization_engine.models import (
@@ -285,5 +293,106 @@ class TestDecisionSupportSavingsRegressions:
         # Old code would have added (min(10, 40-35) * 18.50) = 92.50 EUR.
         assert batch_recs[0].estimated_savings_eur == 12.50
         assert batch_recs[0].peak_load_avoided_kw == 10.0
+
+    def test_peak_load_attribution_ties_defrost(self):
+        """When multiple hours tie for peak_baseline_kw, defrost shift at any tied hour is credited demand savings."""
+        engine = DecisionSupportEngine(facility_id="fac_test_tie")
+        tariffs = [0.20] * 24
+
+        baseline_load = [20.0] * 24
+        baseline_load[5] = 36.8
+        baseline_load[14] = 30.0
+
+        problem = OptimizationProblem(
+            baseline_load_kw=baseline_load,
+            tariff_rates_eur_kwh=tariffs,
+            contracted_capacity_kw=35.0,
+            contracted_demand_rate_eur_per_kw=2.0,
+            defrost_loads=[DefrostLoad(name="Freezer Tie", nominal_start_hour=14, duration_hours=1, power_kw=6.8)],
+        )
+
+        dev_sched = [0.0] * 24
+        dev_sched[2] = 6.8
+        base_tot = [baseline_load[t] + (6.8 if t == 14 else 0.0) for t in range(24)]
+        opt_tot = [20.0] * 24
+        opt_tot[14] = 30.0
+        opt_tot[2] = 26.8
+        opt_tot[5] = 30.0
+
+        schedule = ScheduleResult(
+            status="optimal",
+            is_optimal=True,
+            horizon_hours=24,
+            baseline_total_load_kw=base_tot,
+            optimized_total_load_kw=opt_tot,
+            baseline_cost_eur=100.0,
+            optimized_cost_eur=100.0,
+            savings_eur=0.0,
+            savings_pct=0.0,
+            peak_baseline_kw=36.8,
+            peak_optimized_kw=30.0,
+            peak_reduction_kw=6.8,
+            capacity_breached_baseline=True,
+            capacity_breached_optimized=False,
+            device_schedules={"Freezer Tie": dev_sched},
+            operationally_feasible=True,
+        )
+
+        recs = engine.generate_recommendations(problem, schedule)
+        defrost_recs = [r for r in recs if r.category == RecommendationCategory.DEFROST_SHIFT]
+        assert len(defrost_recs) == 1
+        assert defrost_recs[0].estimated_savings_eur > 0.0
+
+    def test_peak_load_attribution_ties_batch(self):
+        """When multiple hours tie for peak_baseline_kw, batch shift spanning any tied hour is credited demand savings."""
+        engine = DecisionSupportEngine(facility_id="fac_test_tie_batch")
+        tariffs = [0.20] * 24
+
+        baseline_load = [20.0] * 24
+        baseline_load[2] = 40.0
+        baseline_load[10] = 30.0
+
+        problem = OptimizationProblem(
+            baseline_load_kw=baseline_load,
+            tariff_rates_eur_kwh=tariffs,
+            contracted_capacity_kw=35.0,
+            contracted_demand_rate_eur_per_kw=2.5,
+            batch_loads=[ProductionBatchLoad(name="Oven Tie", earliest_start_hour=10, latest_start_hour=18, duration_hours=2, power_kw=10.0)],
+        )
+
+        dev_sched = [0.0] * 24
+        dev_sched[14] = 10.0
+        dev_sched[15] = 10.0
+        base_tot = [baseline_load[t] + (10.0 if t in (10, 11) else 0.0) for t in range(24)]
+        opt_tot = [20.0] * 24
+        opt_tot[2] = 30.0
+        opt_tot[10] = 30.0
+        opt_tot[14] = 30.0
+        opt_tot[15] = 30.0
+
+        schedule = ScheduleResult(
+            status="optimal",
+            is_optimal=True,
+            horizon_hours=24,
+            baseline_total_load_kw=base_tot,
+            optimized_total_load_kw=opt_tot,
+            baseline_cost_eur=100.0,
+            optimized_cost_eur=100.0,
+            savings_eur=0.0,
+            savings_pct=0.0,
+            peak_baseline_kw=40.0,
+            peak_optimized_kw=30.0,
+            peak_reduction_kw=10.0,
+            capacity_breached_baseline=True,
+            capacity_breached_optimized=False,
+            device_schedules={"Oven Tie": dev_sched},
+            operationally_feasible=True,
+        )
+
+        recs = engine.generate_recommendations(problem, schedule)
+        batch_recs = [r for r in recs if r.category == RecommendationCategory.BATCH_SCHEDULING]
+        assert len(batch_recs) == 1
+        assert batch_recs[0].estimated_savings_eur == 12.50
+
 
 
