@@ -10,3 +10,7 @@ dataset caches. Preserve applicable data attribution for published benchmarks.
 For requests to brainstorm improvements, propose a focused design before building
 new features. The GitHub preference authorizes publishing completed work; it does
 not select or approve an unreviewed feature design.
+
+Keep construction and operating costs relatively low. Prefer improvements using
+the existing hardware and software. Assess added equipment and recurring costs
+before proposing hardware expansion or paid infrastructure.

@@ -65,6 +65,9 @@ class DashboardMetricsResponse(BaseModel):
     cost_today_eur: float
     kwh_today: float
     peak_surcharges_today_eur: float
+    billed_peak_surcharges_eur: float | None = None
+    projected_excess_penalty_eur: float | None = None
+    penalty_projection_timestamp: str | None = None
     active_zone_name: str
     is_peak_window: bool
     is_offpeak_window: bool
@@ -206,6 +209,9 @@ def get_dashboard_metrics(
         cost_today_eur=round(float(daily_summary.get("total_spend_eur", 0.0)), 2),
         kwh_today=round(float(daily_summary.get("total_kwh", 0.0)), 1),
         peak_surcharges_today_eur=round(float(daily_summary.get("peak_surcharges_eur", 0.0)), 2),
+        billed_peak_surcharges_eur=daily_summary.get("billed_peak_surcharges_eur"),
+        projected_excess_penalty_eur=daily_summary.get("projected_excess_penalty_eur"),
+        penalty_projection_timestamp=daily_summary.get("penalty_projection_timestamp"),
         active_zone_name=zone_name,
         is_peak_window=is_peak,
         is_offpeak_window=is_offpeak,

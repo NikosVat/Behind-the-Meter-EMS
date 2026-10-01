@@ -493,7 +493,7 @@ class SQLiteStore:
             incremental_cost = getattr(cost_result, "incremental_cost_eur", 0.0) if cost_result else 0.0
             is_peak = 1 if getattr(cost_result, "is_peak_window", False) else 0
             is_excess = 1 if getattr(cost_result, "is_excess_breach", False) else 0
-            projected_penalty = getattr(cost_result, "projected_excess_penalty_eur", 0.0) if cost_result else 0.0
+            projected_penalty = getattr(cost_result, "projected_excess_penalty_eur", None) if cost_result else None
 
             # Auto-provision facility if not yet recorded to prevent foreign key violation
             fac_exists = conn.execute(
@@ -545,7 +545,8 @@ class SQLiteStore:
 
             peak_kwh = delta_kwh if is_peak else 0.0
             offpeak_kwh = delta_kwh if not is_peak else 0.0
-            penalty_contrib = projected_penalty if is_excess else 0.0
+            # A forecast is a snapshot, not an accrued charge.
+            penalty_contrib = 0.0
             date_str = reading_date.isoformat()
 
             conn.execute(
@@ -664,7 +665,11 @@ class SQLiteStore:
         facility_id: str,
         target_date: date | str | None = None,
     ) -> dict[str, Any]:
-        """Get accumulated daily consumption, spend, and peak surcharge breakdown."""
+        """Get estimated accrued energy cost and the latest dated peak projection.
+
+        Invoice surcharges are unknown. The legacy surcharge key stays zero for
+        compatibility; old summed projections in the database are never charges.
+        """
         if target_date is None:
             date_str = datetime.now(timezone.utc).date().isoformat()
         elif isinstance(target_date, date):
@@ -673,6 +678,33 @@ class SQLiteStore:
             date_str = str(target_date)
 
         with self.connection() as conn:
+            latest_projection = conn.execute(
+                """SELECT projected_penalty_eur, timestamp, current_rate_eur_per_kwh,
+                          running_cost_eur_per_h, incremental_cost_eur
+                FROM telemetry_readings
+                WHERE facility_id = ? AND date(timestamp) = ?
+                ORDER BY julianday(timestamp) DESC, id DESC LIMIT 1;""",
+                (facility_id, date_str),
+            ).fetchone()
+            if latest_projection and latest_projection["projected_penalty_eur"] is None:
+                latest_projection = None
+            # Legacy unpriced rows used zero instead of NULL. Without any cost
+            # evidence, conservatively treat that default as unavailable.
+            if (latest_projection and latest_projection["projected_penalty_eur"] == 0
+                    and not any(latest_projection[key] for key in (
+                        "current_rate_eur_per_kwh", "running_cost_eur_per_h",
+                        "incremental_cost_eur"))):
+                latest_projection = None
+            projection = {
+                "billed_peak_surcharges_eur": None,
+                "projected_excess_penalty_eur": (
+                    round(float(latest_projection["projected_penalty_eur"]), 2)
+                    if latest_projection else None
+                ),
+                "penalty_projection_timestamp": (
+                    latest_projection["timestamp"] if latest_projection else None
+                ),
+            }
             row = conn.execute(
                 """
                 SELECT * FROM cost_aggregates
@@ -692,7 +724,8 @@ class SQLiteStore:
                     "total_spend_eur": round(tot_cost, 2),
                     "peak_kwh": round(float(row["peak_kwh"]), 3),
                     "offpeak_kwh": round(float(row["offpeak_kwh"]), 3),
-                    "peak_surcharges_eur": round(float(row["peak_surcharges_eur"]), 2),
+                    "peak_surcharges_eur": 0.0,
+                    **projection,
                     "average_rate_eur_per_kwh": avg_rate,
                 }
 
@@ -703,7 +736,6 @@ class SQLiteStore:
                     COUNT(*) as count,
                     COALESCE(SUM(incremental_cost_eur), 0.0) as sum_cost,
                     COALESCE(SUM(CASE WHEN is_peak_window = 1 THEN incremental_cost_eur ELSE 0.0 END), 0.0) as peak_cost,
-                    COALESCE(SUM(CASE WHEN is_excess_breach = 1 THEN projected_penalty_eur ELSE 0.0 END), 0.0) as surcharges,
                     COALESCE(MIN(cumulative_energy_kwh), 0.0) as min_kwh,
                     COALESCE(MAX(cumulative_energy_kwh), 0.0) as max_kwh
                 FROM telemetry_readings
@@ -723,7 +755,8 @@ class SQLiteStore:
                     "total_spend_eur": round(sum_cost, 2),
                     "peak_kwh": round(kwh_delta, 3),
                     "offpeak_kwh": 0.0,
-                    "peak_surcharges_eur": round(float(fallback["surcharges"]), 2),
+                    "peak_surcharges_eur": 0.0,
+                    **projection,
                     "average_rate_eur_per_kwh": avg_rate,
                 }
 
@@ -736,6 +769,7 @@ class SQLiteStore:
                 "peak_kwh": 0.0,
                 "offpeak_kwh": 0.0,
                 "peak_surcharges_eur": 0.0,
+                **projection,
                 "average_rate_eur_per_kwh": 0.0,
             }
 

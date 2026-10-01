@@ -46,6 +46,9 @@ class FacilityStatusResponse(BaseModel):
     cost_today_eur: float = 0.0
     kwh_today: float = 0.0
     peak_surcharges_today_eur: float = 0.0
+    billed_peak_surcharges_eur: float | None = None
+    projected_excess_penalty_eur: float | None = None
+    penalty_projection_timestamp: str | None = None
     alert_status: str = "IDLE"
 
 
@@ -57,6 +60,9 @@ class CostTodayResponse(BaseModel):
     peak_kwh: float
     offpeak_kwh: float
     peak_surcharges_eur: float
+    billed_peak_surcharges_eur: float | None = None
+    projected_excess_penalty_eur: float | None = None
+    penalty_projection_timestamp: str | None = None
     average_rate_eur_per_kwh: float
 
 
@@ -150,6 +156,9 @@ def get_facility_status(
         cost_today_eur=summary["total_spend_eur"],
         kwh_today=summary["total_kwh"],
         peak_surcharges_today_eur=summary["peak_surcharges_eur"],
+        billed_peak_surcharges_eur=summary["billed_peak_surcharges_eur"],
+        projected_excess_penalty_eur=summary["projected_excess_penalty_eur"],
+        penalty_projection_timestamp=summary["penalty_projection_timestamp"],
         alert_status=alert_state,
     )
 
@@ -157,7 +166,7 @@ def get_facility_status(
 @router.get(
     "/{id}/cost-today",
     response_model=CostTodayResponse,
-    summary="Get today's energy spend and peak surcharge breakdown",
+    summary="Get estimated daily energy cost and latest peak projection",
 )
 def get_facility_cost_today(
     id: str,
@@ -166,7 +175,7 @@ def get_facility_cost_today(
 ) -> CostTodayResponse:
     """Returns detailed breakdown of today's (or specified date's) kWh, spend (€),
 
-    peak consumption, off-peak consumption, and peak surcharges.
+    peak consumption, off-peak consumption, and a dated projection, not invoice charges.
     """
     config = store.get_facility_config(id)
     if not config:
@@ -185,6 +194,9 @@ def get_facility_cost_today(
         peak_kwh=summary["peak_kwh"],
         offpeak_kwh=summary["offpeak_kwh"],
         peak_surcharges_eur=summary["peak_surcharges_eur"],
+        billed_peak_surcharges_eur=summary["billed_peak_surcharges_eur"],
+        projected_excess_penalty_eur=summary["projected_excess_penalty_eur"],
+        penalty_projection_timestamp=summary["penalty_projection_timestamp"],
         average_rate_eur_per_kwh=summary["average_rate_eur_per_kwh"],
     )
 

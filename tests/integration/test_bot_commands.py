@@ -143,8 +143,9 @@ class TestFormatGreekBotResponse:
         assert "💰 Σημερινή Κατανάλωση & Κόστος" in res
         assert "240.5 kWh" in res
         assert "48.60 €" in res
-        assert "0.00 €" in res
-        assert "(εντός ορίων)" in res
+        assert "δεν είναι διαθέσιμη" in res
+        assert "εντός ορίων" not in res
+        assert "άγνωστες" in res
         assert "Μέση Τιμή:" in res
 
     def test_cost_today_command_with_peak_surcharges(self, bakery_facility_config: dict[str, Any]):

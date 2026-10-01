@@ -178,8 +178,8 @@
       <!-- Card 3: Today's Accumulated Spend -->
       <div class="bg-slate-900 border border-slate-800/80 hover:border-slate-700 transition rounded-2xl p-5 shadow-lg">
         <div class="flex items-center justify-between text-slate-400 text-xs font-medium uppercase tracking-wider mb-2">
-          <span>Σημερινή Δαπάνη</span>
-          <span class="text-[11px] font-mono text-amber-400">Συνολικό</span>
+          <span>Εκτιμώμενο Κόστος Ενέργειας</span>
+          <span class="text-[11px] font-mono text-amber-400">Σήμερα</span>
         </div>
         <div class="flex items-baseline space-x-1">
           <span id="todaySpendEur" class="text-3xl font-extrabold text-amber-400 tracking-tight">0.00</span>
@@ -189,6 +189,9 @@
           <span>Κατανάλωση:</span>
           <span id="todayKwh" class="font-mono font-semibold text-slate-200">0.0 kWh</span>
         </div>
+        <p id="peakPenaltyProjection" class="mt-2 text-xs text-amber-300">Πρόβλεψη αιχμής: δεν είναι διαθέσιμη.</p>
+        <p id="peakPenaltyTimestamp" class="mt-1 text-xs text-slate-400"></p>
+        <p class="mt-1 text-xs text-slate-400">Όχι τιμολογημένη χρέωση. Χρεώσεις λογαριασμού: άγνωστες.</p>
       </div>
 
       <!-- Card 4: System Power Factor -->
@@ -913,6 +916,12 @@
         document.getElementById('runningCostEurH').textContent = data.running_cost_eur_per_h.toFixed(2);
         document.getElementById('currentRateKwh').textContent = data.current_rate_eur_per_kwh.toFixed(4) + ' €/kWh';
         document.getElementById('todaySpendEur').textContent = data.cost_today_eur.toFixed(2);
+        document.getElementById('peakPenaltyProjection').textContent =
+          Number.isFinite(data.projected_excess_penalty_eur)
+            ? `Πρόβλεψη πρόσθετου κόστους αιχμής: ${data.projected_excess_penalty_eur.toFixed(2)} €`
+            : 'Πρόβλεψη αιχμής: δεν είναι διαθέσιμη.';
+        document.getElementById('peakPenaltyTimestamp').textContent =
+          data.penalty_projection_timestamp ? `Χρόνος πρόβλεψης: ${data.penalty_projection_timestamp}` : '';
         document.getElementById('todayKwh').textContent = data.kwh_today.toFixed(1) + ' kWh';
         document.getElementById('systemPf').textContent = data.system_power_factor.toFixed(2);
         const measurementLabels = {

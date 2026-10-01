@@ -199,9 +199,10 @@ async def viber_webhook(
             command=text,
             facility=target_facility,
             latest_payload=latest_telemetry,
-            daily_spend_eur=daily_summary.get("total_spend_eur", 48.60),
-            daily_energy_kwh=daily_summary.get("total_kwh", 240.5),
-            peak_surcharge_eur=daily_summary.get("peak_surcharges_eur", 0.0),
+            daily_spend_eur=daily_summary.get("total_spend_eur", 0.0),
+            daily_energy_kwh=daily_summary.get("total_kwh", 0.0),
+            projected_excess_penalty_eur=daily_summary.get("projected_excess_penalty_eur"),
+            penalty_projection_timestamp=daily_summary.get("penalty_projection_timestamp"),
         )
 
         clean_response = _strip_html(raw_response)

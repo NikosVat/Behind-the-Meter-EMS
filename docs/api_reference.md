@@ -185,7 +185,9 @@ Returns the instantaneous telemetry, current active kW, running cost in €/h, a
 ---
 
 ### `GET /api/v1/facilities/{facility_id}/cost-today`
-Calculates cumulative electricity expenditure, consumed kilowatt-hours, and projected peak surcharges for the specified date (defaults to today in Europe/Athens).
+Returns accumulated **estimated energy cost**, consumed kilowatt-hours, and the
+latest peak-cost projection for the specified **UTC date** (defaults to today in
+UTC). The energy estimate is not a reconciled electricity invoice.
 
 #### Query Parameters
 | Parameter | Type | Required | Default | Description |
@@ -197,15 +199,34 @@ Calculates cumulative electricity expenditure, consumed kilowatt-hours, and proj
 {
   "facility_id": "bakery-central-athens",
   "date": "2026-09-14",
-  "cumulative_kwh": 240.50,
+  "total_kwh": 240.50,
   "total_spend_eur": 48.60,
-  "peak_hours_spend_eur": 21.40,
-  "off_peak_spend_eur": 27.20,
-  "average_effective_rate_eur_per_kwh": 0.202,
-  "excess_demand_penalty_eur": 0.0,
-  "power_factor_penalty_eur": 0.0
+  "peak_kwh": 100.0,
+  "offpeak_kwh": 140.50,
+  "average_rate_eur_per_kwh": 0.2021,
+  "peak_surcharges_eur": 0.0,
+  "billed_peak_surcharges_eur": null,
+  "projected_excess_penalty_eur": 18.50,
+  "penalty_projection_timestamp": "2026-09-14T15:30:00+00:00"
 }
 ```
+
+`projected_excess_penalty_eur` is one model estimate from the latest telemetry
+reading for that facility and UTC date. It is never summed across readings or
+added to `total_spend_eur`. A later zero replaces an earlier positive projection.
+Use its timestamp to assess freshness; historical-day projections are historical
+snapshots. With no priced reading available, the projection and timestamp are
+null. This is a per-reading estimate, not a combined forecast across independent
+meters, a demand-billing calculation, or verified savings.
+
+`billed_peak_surcharges_eur` is null because invoice reconciliation is not yet
+implemented. The deprecated `peak_surcharges_eur` field (and
+`peak_surcharges_today_eur` in status/dashboard) stays zero for compatibility;
+zero is **not evidence of no invoice charge or operation within limits**. Older
+stored sums of projections are ignored, without changing historical energy cost.
+The three new projection/billing fields are also returned by facility status and
+dashboard metrics. Older zero projections with no accompanying pricing evidence
+are conservatively treated as unavailable, including genuine zero-cost samples.
 
 ---
 

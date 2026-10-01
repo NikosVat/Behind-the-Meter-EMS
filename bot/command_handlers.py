@@ -12,6 +12,7 @@ Implements Greek-language command handlers for commercial business owners:
 from __future__ import annotations
 
 import logging
+from html import escape
 from datetime import datetime, timezone
 from typing import Any
 
@@ -111,6 +112,8 @@ def format_greek_bot_response(
     daily_energy_kwh: float = 240.5,
     peak_surcharge_eur: float = 0.0,
     active_rate_eur_kwh: float | None = None,
+    projected_excess_penalty_eur: float | None = None,
+    penalty_projection_timestamp: str | None = None,
 ) -> str:
     """Core function formatting Greek responses for interactive bot commands."""
     cmd = command.strip().split()[0].lower() if command.strip() else ""
@@ -215,17 +218,23 @@ def format_greek_bot_response(
         avg_rate = daily_spend_eur / max(0.1, daily_energy_kwh)
         date_str = datetime.now(timezone.utc).strftime("%d/%m/%Y")
 
-        surcharge_line = ""
-        if peak_surcharge_eur > 0.0:
-            surcharge_line = f"⚠️ Επιβάρυνση Ζώνης Αιχμής: <b>{peak_surcharge_eur:.2f} €</b>\n"
+        # Legacy positive argument is an undated projection, never invoice evidence.
+        projection = projected_excess_penalty_eur
+        if projection is None and peak_surcharge_eur > 0:
+            projection = peak_surcharge_eur
+        if projection is not None:
+            surcharge_line = f"⚠️ Πρόβλεψη πρόσθετου κόστους αιχμής: <b>{projection:.2f} €</b> (όχι τιμολογημένη χρέωση)\n"
         else:
-            surcharge_line = "⚠️ Επιβάρυνση Ζώνης Αιχμής: <b>0.00 €</b> (εντός ορίων)\n"
+            surcharge_line = "⚠️ Πρόβλεψη πρόσθετου κόστους αιχμής: δεν είναι διαθέσιμη.\n"
+        if penalty_projection_timestamp:
+            surcharge_line += f"🕒 Χρόνος πρόβλεψης: {escape(penalty_projection_timestamp)}\n"
+        surcharge_line += "Τιμολογημένες χρεώσεις αιχμής: άγνωστες — απαιτείται λογαριασμός.\n"
 
         return (
             f"<b>💰 Σημερινή Κατανάλωση & Κόστος — {facility_name}</b>\n\n"
             f"📅 Ημερομηνία: <b>{date_str}</b>\n"
             f"⚡ Συσσωρευμένη Ενέργεια: <b>{daily_energy_kwh:.1f} kWh</b>\n"
-            f"💶 Συνολικό Κόστος Σήμερα: <b>{daily_spend_eur:.2f} €</b>\n"
+            f"💶 Εκτιμώμενο Κόστος Ενέργειας Σήμερα: <b>{daily_spend_eur:.2f} €</b>\n"
             f"{surcharge_line}"
             f"📉 Μέση Τιμή: <b>{avg_rate:.3f} €/kWh</b>\n"
             f"<i>Περιλαμβάνονται ανταγωνιστικές χρεώσεις, ρυθμιζόμενες και ΦΠΑ 6%.</i>"
@@ -296,6 +305,8 @@ class BotCommandHandler:
         daily_spend_eur: float = 48.60,
         daily_energy_kwh: float = 240.5,
         peak_surcharge_eur: float = 0.0,
+        projected_excess_penalty_eur: float | None = None,
+        penalty_projection_timestamp: str | None = None,
     ) -> None:
         self.facility_config = facility_config
         self.telegram_client = telegram_client
@@ -303,16 +314,25 @@ class BotCommandHandler:
         self.daily_spend_eur = daily_spend_eur
         self.daily_energy_kwh = daily_energy_kwh
         self.peak_surcharge_eur = peak_surcharge_eur
+        self.projected_excess_penalty_eur = projected_excess_penalty_eur
+        self.penalty_projection_timestamp = penalty_projection_timestamp
 
     def update_telemetry(self, payload: TelemetryPayload) -> None:
         """Update cached latest telemetry reading."""
         self.latest_payload = payload
 
-    def update_cost(self, daily_spend_eur: float, daily_energy_kwh: float, peak_surcharge_eur: float = 0.0) -> None:
-        """Update daily spend metrics."""
+    def update_cost(
+        self, daily_spend_eur: float, daily_energy_kwh: float,
+        peak_surcharge_eur: float = 0.0, *,
+        projected_excess_penalty_eur: float | None = None,
+        penalty_projection_timestamp: str | None = None,
+    ) -> None:
+        """Update energy cost and replace (never sum) the peak projection."""
         self.daily_spend_eur = daily_spend_eur
         self.daily_energy_kwh = daily_energy_kwh
         self.peak_surcharge_eur = peak_surcharge_eur
+        self.projected_excess_penalty_eur = projected_excess_penalty_eur
+        self.penalty_projection_timestamp = penalty_projection_timestamp
 
     def handle_command(self, command_text: str) -> str:
         """Process a text command synchronously and return the Greek formatted HTML response."""
@@ -323,6 +343,8 @@ class BotCommandHandler:
             daily_spend_eur=self.daily_spend_eur,
             daily_energy_kwh=self.daily_energy_kwh,
             peak_surcharge_eur=self.peak_surcharge_eur,
+            projected_excess_penalty_eur=self.projected_excess_penalty_eur,
+            penalty_projection_timestamp=self.penalty_projection_timestamp,
         )
 
     async def dispatch_command_response(
