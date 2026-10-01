@@ -127,6 +127,11 @@ public:
      */
     SystemPowerSnapshot update(const ThreePhaseMeasurement& measurements, uint32_t current_millis);
 
+    // Fail closed when the selected mode requires voltage/meter inputs unavailable to CTSampler.
+    // On failure, preserves the configured mode, output and cumulative energy.
+    bool tryUpdateCtOnly(const ThreePhaseMeasurement& measurements, uint32_t current_millis,
+                         SystemPowerSnapshot& output);
+
     /**
      * @brief Mode B update: computes True Active Power, True RMS V and I, S, Q, and true cos phi
      * from synchronously sampled instantaneous voltage and current waveforms.

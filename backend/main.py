@@ -14,7 +14,7 @@ from collections.abc import AsyncGenerator
 from contextlib import asynccontextmanager
 from datetime import datetime, timezone
 
-from fastapi import FastAPI
+from fastapi import Depends, FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
 from backend.config import settings
@@ -26,6 +26,7 @@ from backend.routes.optimization import router as optimization_router
 from backend.routes.schedules import router as schedules_router
 from backend.routes.telemetry import router as telemetry_router
 from backend.routes.viber import router as viber_router
+from backend.security import verify_api_key, verify_dashboard_access, verify_viber_access
 
 logging.basicConfig(
     level=logging.INFO if not settings.DEBUG else logging.DEBUG,
@@ -39,6 +40,8 @@ def create_app(db_path: str | None = None) -> FastAPI:
 
     @asynccontextmanager
     async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
+        if settings.ENVIRONMENT.lower() == "production" and not (settings.API_KEY or "").strip():
+            raise RuntimeError("API_KEY must be configured in production")
         # Startup: initialize database and seed standard Greek commercial facilities
         target_db = getattr(app.state, "db_path", db_path) or settings.SQLITE_DB_PATH
         logger.info("Initializing SQLite time-series store at: %s", target_db)
@@ -73,13 +76,10 @@ def create_app(db_path: str | None = None) -> FastAPI:
     )
 
     # Mount API routers under /api/v1
-    app.include_router(telemetry_router, prefix=settings.API_V1_STR)
-    app.include_router(facilities_router, prefix=settings.API_V1_STR)
-    app.include_router(market_router, prefix=settings.API_V1_STR)
-    app.include_router(viber_router, prefix=settings.API_V1_STR)
-    app.include_router(optimization_router, prefix=settings.API_V1_STR)
-    app.include_router(schedules_router, prefix=settings.API_V1_STR)
-    app.include_router(dashboard_router)
+    for router in (telemetry_router, facilities_router, market_router, optimization_router, schedules_router):
+        app.include_router(router, prefix=settings.API_V1_STR, dependencies=[Depends(verify_api_key)])
+    app.include_router(viber_router, prefix=settings.API_V1_STR, dependencies=[Depends(verify_viber_access)])
+    app.include_router(dashboard_router, dependencies=[Depends(verify_dashboard_access)])
 
     @app.get("/", tags=["system"])
     def root() -> dict[str, str]:

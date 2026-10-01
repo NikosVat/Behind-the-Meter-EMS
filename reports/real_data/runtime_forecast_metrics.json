@@ -1,0 +1,95 @@
+{
+  "protocol": "60-day rolling history; local-midnight 24h forecast; seven chronological validation days; ridge requires 5% validation MAE improvement over best persistence; zero retained; gap/DST exclusions; no operational DB",
+  "python": "3.12.10",
+  "numpy": "2.4.6",
+  "pandas": "3.0.3",
+  "results": [
+    {
+      "building": "Wolf_retail_Marcella",
+      "hours": 8568,
+      "excluded_days": 8,
+      "forecast_unavailable_days": 0,
+      "selected_days": {
+        "previous_week": 95,
+        "ridge": 173,
+        "previous_day": 89
+      },
+      "runtime": {
+        "mae_kw": 2.0096481858324045,
+        "rmse_kw": 2.9592273229623274,
+        "r2": 0.054834981969442476,
+        "wape_pct": 29.706739507667596
+      },
+      "previous_day": {
+        "mae_kw": 2.202390289449113,
+        "rmse_kw": 3.3119243919667873,
+        "r2": -0.18389124881767493,
+        "wape_pct": 32.55586479470375
+      },
+      "previous_week": {
+        "mae_kw": 2.3551587301587302,
+        "rmse_kw": 3.470468205058927,
+        "r2": -0.29995142010514875,
+        "wape_pct": 34.81409700925099
+      }
+    },
+    {
+      "building": "Panther_retail_Lester",
+      "hours": 8328,
+      "excluded_days": 18,
+      "forecast_unavailable_days": 0,
+      "selected_days": {
+        "previous_day": 154,
+        "ridge": 161,
+        "previous_week": 32
+      },
+      "runtime": {
+        "mae_kw": 1.3183184189809831,
+        "rmse_kw": 2.0125278093666386,
+        "r2": 0.8308618682469222,
+        "wape_pct": 19.490369284538485
+      },
+      "previous_day": {
+        "mae_kw": 1.3413156700288185,
+        "rmse_kw": 2.070314490053853,
+        "r2": 0.8210093305938944,
+        "wape_pct": 19.830366745696626
+      },
+      "previous_week": {
+        "mae_kw": 1.8127008645533143,
+        "rmse_kw": 2.5896872206517365,
+        "r2": 0.7199391670679214,
+        "wape_pct": 26.79945053021057
+      }
+    },
+    {
+      "building": "Hog_food_Morgan",
+      "hours": 8568,
+      "excluded_days": 8,
+      "forecast_unavailable_days": 0,
+      "selected_days": {
+        "previous_day": 194,
+        "ridge": 35,
+        "previous_week": 128
+      },
+      "runtime": {
+        "mae_kw": 5.517075470888293,
+        "rmse_kw": 9.881072895978338,
+        "r2": 0.884460243441529,
+        "wape_pct": 8.62212479393302
+      },
+      "previous_day": {
+        "mae_kw": 5.713685574229692,
+        "rmse_kw": 10.46727266804218,
+        "r2": 0.8703446873774403,
+        "wape_pct": 8.929388462103335
+      },
+      "previous_week": {
+        "mae_kw": 8.763531162464986,
+        "rmse_kw": 15.935644224359265,
+        "r2": 0.6994875341400715,
+        "wape_pct": 13.69570884375236
+      }
+    }
+  ]
+}

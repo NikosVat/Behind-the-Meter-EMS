@@ -34,6 +34,10 @@ void EdgeForecaster::begin() {
     if (!loadFromNVS()) {
         resetToDefaultProfile();
     }
+    resetObservationHistory();
+}
+
+void EdgeForecaster::resetObservationHistory() {
     hours_recorded_mask_ = 0;
     sample_count_ = 0;
 }
@@ -108,7 +112,6 @@ void EdgeForecaster::recordHourlyPower(int weekday, int hour, float actual_kw) {
     }
     daily_recorded_kw_[hour] = (actual_kw > 0.0f) ? actual_kw : FORECAST_MIN_POWER_KW;
     hours_recorded_mask_ |= (1UL << hour);
-    updateRecentPowerSample(actual_kw);
 }
 
 bool EdgeForecaster::performDailyAdaptation(int completed_weekday) {

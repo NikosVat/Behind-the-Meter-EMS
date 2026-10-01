@@ -19,12 +19,17 @@ Exposes:
 from __future__ import annotations
 
 import logging
+from datetime import date, datetime
 from typing import Any
+from zoneinfo import ZoneInfo
 
 from fastapi import APIRouter, Depends, HTTPException, Query, status
+from pydantic import ValidationError
 
 from backend.database.sqlite_store import SQLiteStore
 from backend.routes.telemetry import get_database_store
+from backend.schedule_inputs import load_facility_forecast
+from optimization_engine.forecasting import ForecastUnavailable
 from optimization_engine.scheduling_models import (
     AssetCreateRequest,
     AssetUpdateRequest,
@@ -94,6 +99,7 @@ def create_equipment_asset(
     asset_dict = payload.model_dump()
     asset_dict["facility_id"] = facility_id
 
+    GenericEquipmentAsset(**asset_dict)  # Validate before persisting.
     created = store.create_equipment_asset(asset_dict)
     return GenericEquipmentAsset(**created)
 
@@ -138,6 +144,10 @@ def update_equipment_asset(
         )
 
     updates = payload.model_dump(exclude_unset=True)
+    try:
+        GenericEquipmentAsset(**(existing | updates))
+    except ValidationError as exc:
+        raise HTTPException(status_code=422, detail=str(exc)) from exc
     updated = store.update_equipment_asset(facility_id, asset_id, updates)
     if not updated:
         raise HTTPException(
@@ -196,6 +206,10 @@ def update_schedule_settings(
 ) -> ScheduleSettings:
     _verify_facility_exists(facility_id, store)
     updates = payload.model_dump(exclude_unset=True)
+    try:
+        ScheduleSettings(**((store.get_schedule_settings(facility_id) or {}) | updates))
+    except ValidationError as exc:
+        raise HTTPException(status_code=422, detail=str(exc)) from exc
     updated = store.upsert_schedule_settings(facility_id, updates)
     return ScheduleSettings(**updated)
 
@@ -236,27 +250,34 @@ def _build_and_solve_schedule(
         raw_assets = store.get_equipment_assets(facility_id, enabled_only=True)
         assets = [GenericEquipmentAsset(**a) for a in raw_assets]
 
-    # 3. Determine provenance
-    input_source = "forecast"
-    is_demo = False
-    if payload.baseline_load_kw is not None:
-        input_source = "caller_supplied"
-    elif not assets:
-        input_source = "demo_profile"
-        is_demo = True
+    # 3. Resolve a day-origin forecast, or explicitly labelled demonstration.
+    target = payload.schedule_date or datetime.now(ZoneInfo(active_settings.timezone)).date().isoformat()
+    baseline = payload.baseline_load_kw
+    forecast_info = None
+    unavailable = None
+    input_source = "caller_supplied" if baseline is not None else "demo_profile"
+    is_demo = payload.data_mode == "demo"
+    if baseline is None and payload.data_mode != "demo":
+        try:
+            forecast_info = load_facility_forecast(store, facility_id, date.fromisoformat(target), active_settings.timezone)
+            baseline = forecast_info["load_kw"]
+            input_source = "forecast"
+            is_demo = forecast_info["is_demo"]
+        except ForecastUnavailable as exc:
+            if payload.data_mode == "telemetry":
+                raise HTTPException(status_code=422, detail=str(exc)) from exc
+            unavailable = str(exc)
+    # Caller prices are the effective marginal tariff, not wholesale spot prices.
+    if payload.data_mode == "telemetry" and payload.tariff_rates_eur_kwh is None:
+        raise HTTPException(status_code=422, detail="Telemetry mode requires explicit effective tariff_rates_eur_kwh; synthetic prices are demonstration only")
 
     # 4. Instantiate and solve
-    service = EquipmentSchedulingService(
-        settings=active_settings,
-        assets=assets,
-        schedule_date=payload.schedule_date,
-        baseline_load_kw=payload.baseline_load_kw,
-        tariff_rates_eur_kwh=payload.tariff_rates_eur_kwh,
-        input_source=input_source,
-        is_demo=is_demo,
-    )
-
     try:
+        service = EquipmentSchedulingService(
+            settings=active_settings, assets=assets, schedule_date=target,
+            baseline_load_kw=baseline, tariff_rates_eur_kwh=payload.tariff_rates_eur_kwh,
+            input_source=input_source, is_demo=is_demo,
+        )
         schedule = service.solve()
     except ValueError as ex:
         raise HTTPException(
@@ -264,8 +285,29 @@ def _build_and_solve_schedule(
             detail=str(ex),
         )
 
+    schedule.assumptions.append("Tariff source: caller-supplied effective marginal rates." if payload.tariff_rates_eur_kwh is not None
+                                else "Tariff source: synthetic demonstration scenario; not a supplier quote.")
+    if forecast_info:
+        schedule.assumptions.append(f"Forecast model: {forecast_info['model']}; origin: {forecast_info['origin']}; chronological validation MAE (kW): {forecast_info['validation_mae_kw']}")
+        schedule.assumptions.append(f"Measurement provenance: {forecast_info['measurement_methods']} (source-reported, not certified).")
+        schedule.warnings.extend(forecast_info["warnings"])
+        if assets:
+            schedule.warnings.append("Whole-facility forecast reserves existing demand; adding equipment is an incremental-load scenario and may double-count existing equipment. Supply an isolated background profile for operational scheduling.")
+    elif unavailable:
+        schedule.warnings.append(f"Facility forecast unavailable: {unavailable}")
     schedule.status = status_type
     return schedule
+
+
+@router.get("/{facility_id}/load-forecast", summary="24-hour forecast and chronological model validation")
+def get_load_forecast(facility_id: str, schedule_date: date,
+                      store: SQLiteStore = Depends(get_database_store)) -> dict[str, Any]:
+    _verify_facility_exists(facility_id, store)
+    settings = ScheduleSettings(**(store.get_schedule_settings(facility_id) or {}))
+    try:
+        return load_facility_forecast(store, facility_id, schedule_date, settings.timezone)
+    except ForecastUnavailable as exc:
+        raise HTTPException(status_code=422, detail=str(exc)) from exc
 
 
 @router.post(

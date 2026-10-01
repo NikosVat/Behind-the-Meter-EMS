@@ -4,6 +4,7 @@
  */
 
 #include "telemetry_client.h"
+#include "rest_auth.h"
 #include <time.h>
 #include <algorithm>
 
@@ -29,6 +30,9 @@ TelemetryClient::TelemetryClient()
 #endif
 #ifndef EMS_API_BASE_URL
 #define EMS_API_BASE_URL "https://ems.local:8000"
+#endif
+#ifndef EMS_API_KEY
+#define EMS_API_KEY ""
 #endif
     strncpy(wifi_ssid_, WIFI_SSID, sizeof(wifi_ssid_));
     strncpy(wifi_password_, WIFI_PASSWORD, sizeof(wifi_password_));
@@ -152,7 +156,7 @@ void TelemetryClient::formatIsoTimestamp(uint32_t epoch, char* out_buf, size_t b
     }
 }
 
-String TelemetryClient::serializePayloadJson(const SystemPowerSnapshot& snapshot, const char* timestamp_str, int8_t rssi_dbm) {
+String TelemetryClient::serializePayloadJson(const SystemPowerSnapshot& snapshot, const char* timestamp_str, int8_t rssi_dbm, float predicted_next_kw, bool projected_peak_breach) {
     StaticJsonDocument<1024> doc;
 
     doc["device_id"] = device_id_;
@@ -211,19 +215,24 @@ String TelemetryClient::serializePayloadJson(const SystemPowerSnapshot& snapshot
     return output;
 }
 
-bool TelemetryClient::sendRestPayload(const String& json_payload) {
-    if (wifi_state_ != WiFiState::CONNECTED) return false;
+DeliveryOutcome TelemetryClient::sendRestPayload(const String& json_payload) {
+    if (wifi_state_ != WiFiState::CONNECTED) return DeliveryOutcome::RETRY;
 
     HTTPClient http;
     String target_url = String(rest_base_url_) + String(rest_endpoint_);
     http.begin(target_url);
     http.addHeader("Content-Type", "application/json");
+    addApiKeyHeader(http, EMS_API_KEY);
     http.setTimeout(4000);
 
     int http_response_code = http.POST(json_payload);
     http.end();
 
-    return (http_response_code >= 200 && http_response_code < 300);
+    const DeliveryOutcome outcome = classifyRestDelivery(http_response_code);
+    if (outcome == DeliveryOutcome::TERMINAL_REJECTION) {
+        Serial.println(F("[TELEMETRY] Server rejected timestamp (409); dropping record so newer telemetry can proceed."));
+    }
+    return outcome;
 }
 
 bool TelemetryClient::sendMqttPayload(const String& json_payload) {
@@ -245,17 +254,17 @@ bool TelemetryClient::dispatchTelemetry(const SystemPowerSnapshot& snapshot, flo
         formatIsoTimestamp(now_epoch, ts_buf, sizeof(ts_buf));
         String payload = serializePayloadJson(snapshot, ts_buf, rssi, predicted_next_kw, projected_peak_breach);
 
-        bool success = true;
+        DeliveryOutcome outcome = DeliveryOutcome::DELIVERED;
         if (mode_ == TelemetryMode::REST_ONLY || mode_ == TelemetryMode::REST_AND_MQTT) {
-            success = sendRestPayload(payload);
+            outcome = sendRestPayload(payload);
         }
-        if ((mode_ == TelemetryMode::MQTT_ONLY || mode_ == TelemetryMode::REST_AND_MQTT) && success) {
-            sendMqttPayload(payload);
+        if ((mode_ == TelemetryMode::MQTT_ONLY || mode_ == TelemetryMode::REST_AND_MQTT) && outcome == DeliveryOutcome::DELIVERED) {
+            outcome = sendMqttPayload(payload) ? DeliveryOutcome::DELIVERED : DeliveryOutcome::RETRY;
         }
 
-        if (success) {
-            return true;
-        }
+        if (outcome == DeliveryOutcome::DELIVERED) return true;
+        // Permanently rejected data must not be enqueued or reported as stored successfully.
+        if (outcome == DeliveryOutcome::TERMINAL_REJECTION) return false;
     }
 
     // Network unavailable or direct send failed: store in ring buffer for store-and-forward
@@ -283,16 +292,15 @@ void TelemetryClient::flushQueue(uint8_t max_records_per_loop) {
         formatIsoTimestamp(rec.timestamp_epoch, ts_buf, sizeof(ts_buf));
         String payload = serializePayloadJson(rec.power, ts_buf, rec.rssi_dbm, rec.predicted_next_kw, rec.projected_peak_breach);
 
-        bool success = true;
+        DeliveryOutcome outcome = DeliveryOutcome::DELIVERED;
         if (mode_ == TelemetryMode::REST_ONLY || mode_ == TelemetryMode::REST_AND_MQTT) {
-            success = sendRestPayload(payload);
+            outcome = sendRestPayload(payload);
         }
-        if ((mode_ == TelemetryMode::MQTT_ONLY || mode_ == TelemetryMode::REST_AND_MQTT) && success) {
-            sendMqttPayload(payload);
+        if ((mode_ == TelemetryMode::MQTT_ONLY || mode_ == TelemetryMode::REST_AND_MQTT) && outcome == DeliveryOutcome::DELIVERED) {
+            outcome = sendMqttPayload(payload) ? DeliveryOutcome::DELIVERED : DeliveryOutcome::RETRY;
         }
 
-        if (success) {
-            ring_buffer_.pop(rec);
+        if (retireBufferedRecord(ring_buffer_, rec, outcome)) {
             sent_count++;
         } else {
             // If transmission failed, stop flushing and keep remaining in buffer

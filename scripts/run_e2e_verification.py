@@ -20,6 +20,7 @@ Usage:
 from __future__ import annotations
 
 import argparse
+import os
 import contextlib
 import sys
 import tempfile
@@ -189,9 +190,10 @@ def run_verification() -> int:
 
     # Initialize client & dependencies
     mock_bot = None
+    headers = {"X-API-Key": os.environ["API_KEY"]} if os.getenv("API_KEY") else {}
     if args.url:
         import httpx
-        client = httpx.Client(base_url=args.url.rstrip("/"), timeout=15.0)
+        client = httpx.Client(base_url=args.url.rstrip("/"), timeout=15.0, headers=headers)
     else:
         from fastapi.testclient import TestClient
 
@@ -210,7 +212,7 @@ def run_verification() -> int:
         mock_bot = MockTelegramClient()
         dispatcher = AlertDispatcher(telegram_client=mock_bot)
         app.state.dispatcher = dispatcher
-        client = TestClient(app)
+        client = TestClient(app, headers=headers)
 
     try:
         from simulator.generator import TelemetryGenerator

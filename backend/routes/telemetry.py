@@ -18,7 +18,7 @@ from typing import Annotated, Any
 from fastapi import APIRouter, Depends, HTTPException, Request, status
 from pydantic import BaseModel
 
-from backend.database.sqlite_store import SQLiteStore, get_store
+from backend.database.sqlite_store import SQLiteStore, TelemetryOrderError, get_store
 from backend.models.telemetry import TelemetryPayload
 from tariff_engine import (
     calculate_realtime_cost,
@@ -126,15 +126,6 @@ async def ingest_telemetry(
         }
         store.store_facility_config(facility_config)
 
-    # Compute energy delta from previous reading
-    prev_reading = store.get_latest_telemetry(payload.facility_id)
-    if prev_reading and prev_reading.get("cumulative_energy_kwh") is not None:
-        energy_delta = max(
-            0.0, payload.cumulative_energy_kwh - prev_reading["cumulative_energy_kwh"]
-        )
-    else:
-        energy_delta = 0.0
-
     # Resolve dynamic market rate via market feed adapter
     market_svc = None
     if request is not None and hasattr(request, "app") and hasattr(request.app.state, "market_service"):
@@ -153,18 +144,25 @@ async def ingest_telemetry(
 
     # Calculate real-time electricity cost via tariff engine
     profile_obj = SimpleNamespace(**facility_config)
-    cost_res = calculate_realtime_cost(
-        power_kw=payload.total_active_power_kw,
-        energy_kwh_delta=energy_delta,
-        timestamp=payload.timestamp,
-        tariff_profile=profile_obj,
-        tea_eur_mwh=effective_tea,
-        power_factor=payload.system_power_factor,
-        contracted_kva=facility_config.get("contracted_kva", 35.0),
-    )
+    cost_res = None
 
-    # Store telemetry in SQLite WAL store
-    reading_id = store.store_telemetry(payload, cost_res)
+    def price_delta(energy_delta: float):
+        nonlocal cost_res
+        cost_res = calculate_realtime_cost(
+            power_kw=payload.total_active_power_kw,
+            energy_kwh_delta=energy_delta,
+            timestamp=payload.timestamp,
+            tariff_profile=profile_obj,
+            tea_eur_mwh=effective_tea,
+            power_factor=payload.system_power_factor,
+            contracted_kva=facility_config.get("contracted_kva", 35.0),
+        )
+        return cost_res
+
+    try:
+        reading_id = store.store_telemetry(payload, cost_factory=price_delta)
+    except TelemetryOrderError as exc:
+        raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail=str(exc)) from exc
 
     # Process alert evaluation
     alert_event = await dispatcher.process_telemetry(payload, cost_res, facility_config)

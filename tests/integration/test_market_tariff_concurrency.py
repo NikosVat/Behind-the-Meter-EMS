@@ -331,7 +331,10 @@ class TestConcurrencyAndThreadSafety:
             async def post_telemetry(fid: str, idx: int):
                 payload = make_telemetry_payload(fid, idx)
                 res = await asyncio.to_thread(client.post, "/api/v1/telemetry", json=payload)
-                assert res.status_code == 200, f"Telemetry failed: {res.text}"
+                assert res.status_code in (200, 409), f"Telemetry failed: {res.text}"
+                if res.status_code == 409:
+                    assert "timestamp" in res.json()["detail"]
+                    return None
                 data = res.json()
                 assert data["status"] == "success"
                 assert data["running_cost_eur_per_h"] > 0.0
@@ -384,6 +387,14 @@ class TestConcurrencyAndThreadSafety:
             assert len(results) == 60
             readings = store.get_telemetry_history("facility-alpha", limit=100)
             assert len(readings) > 0
+            accepted = [result for result in results[:30] if result is not None]
+            for fid in facilities:
+                rows = store.get_telemetry_history(fid, limit=100)
+                assert len(rows) == sum(result["facility_id"] == fid for result in accepted)
+                summary = store.get_daily_summary(fid, "2026-09-15")
+                expected_kwh = rows[0]["cumulative_energy_kwh"] - rows[-1]["cumulative_energy_kwh"]
+                assert summary["total_kwh"] == pytest.approx(expected_kwh)
+                assert summary["total_spend_eur"] == round(sum(row["incremental_cost_eur"] for row in rows), 2)
 
             status_res = client.get("/api/v1/market/status").json()
             assert status_res["online"] is True
@@ -602,14 +613,22 @@ class TestCachePerformanceAndProgression:
 
             async def send_one(idx: int):
                 res = await asyncio.to_thread(client.post, "/api/v1/telemetry", json=make_reading(idx))
-                assert res.status_code == 200
+                assert res.status_code in (200, 409), res.text
+                if res.status_code == 409:
+                    assert "timestamp" in res.json()["detail"]
+                    return None
                 return res.json()
 
             tasks = [send_one(i) for i in range(25)]
             results = await asyncio.gather(*tasks, return_exceptions=False)
             assert len(results) == 25
 
-            # Verify daily aggregate spend is strictly positive and consistent
+            # Every accepted delta contributes once; stale arrivals contribute nothing.
+            rows = store.get_telemetry_history("bakery-high-load", limit=100)
+            accepted = [result for result in results if result is not None]
+            assert len(rows) == len(accepted)
             summary = store.get_daily_summary("bakery-high-load", "2026-09-15")
-            assert summary["total_spend_eur"] >= 0.0
+            expected_kwh = rows[0]["cumulative_energy_kwh"] - rows[-1]["cumulative_energy_kwh"]
+            assert summary["total_kwh"] == pytest.approx(expected_kwh)
+            assert summary["total_spend_eur"] == round(sum(result["incremental_cost_eur"] for result in accepted), 2)
 

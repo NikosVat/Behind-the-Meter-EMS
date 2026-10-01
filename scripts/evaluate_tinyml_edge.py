@@ -1,24 +1,17 @@
-"""Evaluation benchmark for the tinyML On-Device Weekly Profiler & Adaptive Forecaster.
-
-Phase 2 Scale-Up: Dual-Matrix (Mean + Volatility Sigma), P95 Peak Risk, and Momentum (v_t).
-Simulates the exact C++ firmware EdgeForecaster running on the held-out 2017 test year
-from the Building Data Genome 2 (BDG2) dataset.
-
-Compares:
-1. Static 2016 Weekly Profile (No Adaptation)
-2. Day-Ahead Adaptive Weekly Profile (with daily EMA micro-updates)
-3. Real-Time Next-Hour Adaptive Forecaster with Multi-Lag Momentum (phi=0.60, phi_v=0.25)
-4. Probabilistic P95 Single-Sided Peak Risk Envelope
-"""
+"""Hourly analogue of edge forecast formulas; no ESP32 or capacity validation."""
 
 from __future__ import annotations
 
 import sys
+import json
 from pathlib import Path
 import numpy as np
 import pandas as pd
 
 ROOT = Path(__file__).resolve().parents[1]
+sys.path.insert(0, str(ROOT))
+from scripts.benchmark_day_ahead import day_ahead_features
+
 CACHE = ROOT / ".agents" / "real_data"
 OUT_REPORT = ROOT / "reports" / "real_data" / "TINYML_EVALUATION.md"
 
@@ -26,7 +19,7 @@ BUILDINGS = ["Panther_retail_Lester", "Wolf_retail_Marcella", "Lamb_office_Peggy
 
 
 class SimEdgeForecasterPhase2:
-    """Exact simulation of Phase 2 firmware/src/edge_forecast.cpp."""
+    """Hourly analogue; trained profile and sample cadence differ from firmware."""
 
     def __init__(
         self,
@@ -95,7 +88,6 @@ class SimEdgeForecasterPhase2:
     def record_hourly(self, hour: int, actual_kw: float) -> None:
         self.daily_buffer[hour] = max(self.min_kw, actual_kw)
         self.hours_recorded_mask |= (1 << hour)
-        self.update_sample(actual_kw)
 
     def adapt_day(self, weekday: int) -> bool:
         valid_count = bin(self.hours_recorded_mask).count("1")
@@ -140,8 +132,9 @@ def metrics(actual: np.ndarray, pred: np.ndarray) -> dict[str, float]:
 
 
 def evaluate_building(building: str, raw_series: pd.Series) -> dict:
-    s_2016 = raw_series.loc["2016-01-01":"2016-12-31"].dropna()
-    s_2016_pos = s_2016[s_2016 > 0.0]
+    metadata = pd.read_csv(CACHE / "metadata.csv").set_index("building_id")
+    x, raw_series, eligible = day_ahead_features(raw_series, metadata.loc[building, "timezone"])
+    s_2016_pos = raw_series.loc["2016-01-01":"2016-12-31"].dropna()
 
     grouped_mean = s_2016_pos.groupby([s_2016_pos.index.dayofweek, s_2016_pos.index.hour]).mean()
     grouped_std = s_2016_pos.groupby([s_2016_pos.index.dayofweek, s_2016_pos.index.hour]).std().fillna(1.0)
@@ -167,7 +160,9 @@ def evaluate_building(building: str, raw_series: pd.Series) -> dict:
     adaptive_p95_list = []
 
     for date, day_df in s_2017.groupby(s_2017.index.normalize()):
-        if len(day_df) != 24 or (day_df <= 0).any() or day_df.isna().any():
+        if not eligible.reindex(day_df.index).all() or len(day_df) != 24:
+            adaptive_forecaster.sample_count = 0
+            adaptive_forecaster.recent_samples = [0.0, 0.0, 0.0]
             continue
 
         actual_vals = day_df.to_numpy()
@@ -186,6 +181,7 @@ def evaluate_building(building: str, raw_series: pd.Series) -> dict:
             curr_kw = actual_vals[h]
             next_actual = actual_vals[h + 1]
 
+            adaptive_forecaster.update_sample(curr_kw)
             pred_mean = adaptive_forecaster.predict_next_hour(wday, h, curr_kw)
             pred_p95 = adaptive_forecaster.predict_next_hour_p95(wday, h, curr_kw)
 
@@ -195,6 +191,7 @@ def evaluate_building(building: str, raw_series: pd.Series) -> dict:
 
             adaptive_forecaster.record_hourly(h, curr_kw)
 
+        adaptive_forecaster.update_sample(actual_vals[23])
         adaptive_forecaster.record_hourly(23, actual_vals[23])
 
         # 3. Midnight adaptation
@@ -211,65 +208,32 @@ def evaluate_building(building: str, raw_series: pd.Series) -> dict:
         "static_day_ahead": metrics(np.array(actual_24h_list), np.array(static_day_ahead_list)),
         "adaptive_day_ahead": metrics(np.array(actual_24h_list), np.array(adaptive_day_ahead_list)),
         "adaptive_next_hour": metrics(actual_arr, np.array(adaptive_next_hour_list)),
-        "p95_coverage_pct": p95_coverage_pct,
+        "heuristic_coverage_pct": p95_coverage_pct,
+        "heuristic_exceedance_hours": int(np.sum(actual_arr > p95_arr)),
+        "contracted_capacity_kw": None,
+        "previous_day": metrics(raw_series.loc[eligible & (raw_series.index.year == 2017)].to_numpy(), x.loc[eligible & (raw_series.index.year == 2017), "lag_24"].to_numpy()),
+        "previous_week": metrics(raw_series.loc[eligible & (raw_series.index.year == 2017)].to_numpy(), x.loc[eligible & (raw_series.index.year == 2017), "lag_168"].to_numpy()),
     }
 
 
 def main():
-    print("Evaluating Phase 2 tinyML Edge Forecaster (P95 Peak Risk + Multi-Lag Momentum)...")
     csv_path = CACHE / "electricity.csv"
-    if not csv_path.exists():
-        print(f"Error: {csv_path} not found.")
-        sys.exit(1)
-
     raw = pd.read_csv(csv_path, usecols=["timestamp"] + BUILDINGS, index_col="timestamp", parse_dates=True)
-
-    results = []
-    for b in BUILDINGS:
-        print(f"Evaluating {b}...")
-        res = evaluate_building(b, raw[b])
-        results.append(res)
-        print(f"  Valid days: {res['valid_test_days']}")
-        print(f"  Adaptive 24h: MAE={res['adaptive_day_ahead']['mae_kw']} kW, WAPE={res['adaptive_day_ahead']['wape_pct']}%")
-        print(f"  Next-Hour 1h (Momentum): MAE={res['adaptive_next_hour']['mae_kw']} kW, WAPE={res['adaptive_next_hour']['wape_pct']}%")
-        print(f"  P95 Peak Risk Envelope Coverage: {res['p95_coverage_pct']}%")
-
-    lines = [
-        "# tinyML ESP32 Edge Forecaster - Phase 2 Scale-Up Evaluation Report",
-        "",
-        "This evaluation tests the scaled-up C++ `EdgeForecaster` tinyML architecture with **Dual-Matrix Memory (1.34 KB SRAM)**, ",
-        "**Multi-Lag Momentum ($dP/dt$)**, and **P95 Probabilistic Peak Risk** across all held-out 2017 test days from BDG2.",
-        "",
-        "## Summary of Forecast Error & Peak Risk Coverage",
-        "",
-        "| Building | Test Days | Static 24h Baseline MAE (WAPE) | **Adaptive 24h Profile MAE (WAPE)** | **Real-Time Next-Hour MAE (WAPE)** | **P95 Peak Safety Coverage** |",
-        "| :--- | :---: | :---: | :---: | :---: | :---: |",
-    ]
-
+    results = [evaluate_building(b, raw[b]) for b in BUILDINGS]
+    OUT_REPORT.parent.mkdir(parents=True, exist_ok=True)
+    (OUT_REPORT.parent / "tinyml_metrics.json").write_text(json.dumps(results, indent=2), encoding="utf-8")
+    lines = ["# Adaptive weekly profile: hourly Python evaluation", "",
+        "This is an hourly-resolution analogue of the edge forecast formulas using BDG2 hourly averages. It does not run C++ firmware, validate ESP32 memory/latency, or reproduce five-second sample momentum. Initial mean/std profiles and clamp anchors are estimated from 2016, unlike the deployed firmware's default profile.", "",
+        "All 24 day-ahead means are frozen at local midnight. Daily EMA adaptation happens after the evaluated day's 24 samples. The separate next-hour diagnostic observes current hourly load before predicting the following hour and scores only hours 01:00-23:00; it must not be reported as 24h forecast accuracy.",
+        "Zero targets are retained. Missing/nonfinite/negative readings, incomplete lag/target days, DST transition/dependent dates are excluded on a regular hourly index. All 24h methods share the lag24/48/168 eligibility mask. Skipped days do not update the profile; sample momentum is reset after gaps. The analogue retains the firmware-style 0.05 kW prediction/sample floor.", "",
+        "| Building | Test days | Previous-day WAPE | Previous-week WAPE | Static profile WAPE | Adaptive 24h WAPE | Next-hour WAPE | Next-hour heuristic coverage | Bound exceedance hours |",
+        "|---|---:|---:|---:|---:|---:|---:|---:|---:|"]
     for r in results:
-        b_name = r["building"]
-        days = r["valid_test_days"]
-        s_24 = f"{r['static_day_ahead']['mae_kw']} kW ({r['static_day_ahead']['wape_pct']}%)"
-        a_24 = f"**{r['adaptive_day_ahead']['mae_kw']} kW ({r['adaptive_day_ahead']['wape_pct']}%)**"
-        a_1h = f"**{r['adaptive_next_hour']['mae_kw']} kW ({r['adaptive_next_hour']['wape_pct']}%)**"
-        cov = f"**{r['p95_coverage_pct']}%** of hours covered"
-        lines.append(f"| `{b_name}` | {days} | {s_24} | {a_24} | {a_1h} | {cov} |")
-
-    lines.extend([
-        "",
-        "## Phase 2 Key Breakthroughs",
-        "",
-        "1. **Peak Safety Envelope (P95 Risk Buffer):**",
-        "   - Across all commercial retail test hours, the P95 peak forecast safely enclosed **93.8% – 97.4%** of all realized load spikes! ",
-        "   - This gives the facility manager and the BESS/optimizer a statistically sound safety buffer to prevent DEDDIE contracted capacity breaches before they happen.",
-        "2. **Multi-Lag Momentum Acceleration ($dP/dt$):**",
-        "   - Adding the velocity term $v_t = P_t - P_{t-1}$ further stabilized next-hour forecasting, reacting instantly when large commercial baking ovens or refrigeration compressors cycle on.",
-        "3. **Dual On-Device Continual Adaptation:**",
-        "   - The ESP32 autonomously adapts both the baseline expected load ($\\\\mu$) and the hourly operational volatility ($\\\\sigma$) every midnight, using only **1.34 KB of SRAM**.",
-    ])
-
+        lines.append(f"| {r['building']} | {r['valid_test_days']} | {r['previous_day']['wape_pct']:.2f}% | {r['previous_week']['wape_pct']:.2f}% | {r['static_day_ahead']['wape_pct']:.2f}% | {r['adaptive_day_ahead']['wape_pct']:.2f}% | {r['adaptive_next_hour']['wape_pct']:.2f}% | {r['heuristic_coverage_pct']:.2f}% | {r['heuristic_exceedance_hours']} |")
+    lines += ["", "The next-hour heuristic upper value is mean + 1.645 x adaptive profile dispersion. Its empirical coverage does not establish calibrated P95, no-breach reliability, or penalty avoidance. Contracted capacity and capacity-breach outcomes are unknown. Profile quality and distribution shifts require monitoring; the office series contains a severe operating/data regime change.", "",
+        "Exact MAE/RMSE/WAPE and exceedance counts are in `tinyml_metrics.json`. Source: Building Data Genome 2, Miller et al. (2020), https://doi.org/10.1038/s41597-020-00712-x. Source and adapted outputs: CC BY-SA 4.0."]
     OUT_REPORT.write_text("\n".join(lines) + "\n", encoding="utf-8")
-    print(f"\nReport written to: {OUT_REPORT}")
+    print(json.dumps(results, indent=2))
 
 
 if __name__ == "__main__":

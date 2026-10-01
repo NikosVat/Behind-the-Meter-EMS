@@ -7,59 +7,36 @@
 [![Safety Standard](https://img.shields.io/badge/Standard-ELOT%2060364-red.svg)](https://www.elot.gr)
 [![Bill Validation: 0.00% Error](https://img.shields.io/badge/Bill%20Audit-0.00%25%20Error%20(198%20lines)-success.svg)](docs/tariff_validation_report.md)
 [![Calibration: simulation model](https://img.shields.io/badge/Calibration-simulation%20model-blue.svg)](docs/measurement_uncertainty_report.md)
-[![Tests: 603 Passed](https://img.shields.io/badge/tests-603%20passed%20(100%25)-success.svg)](tests/)
+[![Tests](https://img.shields.io/badge/tests-run%20pytest-blue.svg)](tests/)
 
-A prototype closed-loop Behind-the-Meter Energy Management System (EMS) engineered for **commercial SMBs** (artisanal bakeries, cold storage logistics, boutique hotels). The platform bridges low-cost IoT metering hardware (<50€ BOM) with mathematical mixed-integer linear programming (MILP), transforming energy management from passive monitoring into an autonomous optimization loop: **`Measure -> Predict -> Optimize -> Act -> Verify`**.
+An advisory energy-management prototype for commercial SMBs, combining ESP32 telemetry, day-ahead load forecasting, and equipment-constrained MILP scheduling. Staff review recommendations before changing equipment operation. Public-data benchmarks support software evaluation; achieved site savings and production hardware accuracy remain unverified.
 
+See the [competition and pilot dossier](docs/product/PRODUCT_DOSSIER.md) for the evidence, demo flow, and remaining deployment work.
 ---
 
 ## Measurement and optimization limits
 
 The current CT-only firmware measures RMS current and **estimates power and energy using configured voltage and power factor**. It does not measure instantaneous voltage or power factor. Telemetry labels these readings `estimated_nominal_voltage_pf`; simulated and legacy/unknown readings are also distinguished. The calibration report is a simulation and does not certify physical hardware accuracy.
 
-Optimization defaults are demonstration load, weather and tariff profiles, not a trained forecast. Recommendations have `confidence_score: null` until calibrated. Comfort violations are explicit and suppress operational recommendations; mathematical optimality alone does not imply acceptable comfort. Verification compares stored energy intervals with an assumed counterfactual and does not certify total savings. See [API migration details](docs/api_reference.md) and [real forecasting data sources](docs/forecasting_data_sources.md).
+Schedule Studio forecasts a local 24-hour day from stored hourly telemetry, comparing a NumPy ridge model with previous-day/week baselines on seven chronological validation days. All inputs precede the forecast origin. With insufficient history it uses persistence or explicitly labelled demo data. `data_mode="telemetry"` rejects missing history and requires caller-supplied effective tariff rates. The separate legacy `/optimization/solve` endpoint still uses demonstration defaults.
 
-## Executive Summary & Empirical Validation
+Whole-facility forecasts reserve existing demand. Adding named equipment to them is an incremental-load scenario that may double-count equipment; a pilot must provide an isolated background profile and actual marginal tariffs. Capacity constraints include penalized slack: any breach is a warning, not a safe-to-execute instruction. Default uncertainty margins are policy buffers, not calibrated probabilities.
 
-Commercial small-and-medium businesses face extreme electricity bill volatility and severe peak capacity surcharges. While modern smart meters like the Shelly Pro 3EM provide reliable local webhooks and basic threshold scripting, and enterprise platforms (Schneider EcoStruxure, Siemens Desigo) offer facility-wide monitoring at high industrial cost (€2,500+), neither delivers an out-of-the-box optimization layer tailored to Greek commercial tariffs (Γ21/Γ22/Γ23, Law 5068/2023) or equipment-constrained MILP load scheduling for small businesses.
+CT-only readings remain `estimated_nominal_voltage_pf`. Mode B acquisition is blocked until a real voltage/meter driver is integrated. Clock-dependent telemetry waits for valid RTC/NTP time. Configured API keys protect API/dashboard data; production startup requires a key. The dashboard accepts a key for the current page only. Telemetry rejects stale/duplicate timestamps with HTTP 409 rather than billing them again.
 
-This platform provides an autonomous decision-support and constrained load scheduling layer that respects physical equipment operating boundaries (refrigeration defrost windows, HVAC comfort deadbands, bakery batch baking runs, battery storage).
+## Reproducible evidence
 
-```
-+----------------------------------------------------------------------------------------------------+
-|                                    CLOSED-LOOP EMS OPERATING PARADIGM                               |
-+----------------------------------------------------------------------------------------------------+
-|                                                                                                    |
-|    [ 1. MEASURE ]   -->  ESP32 True RMS 3-phase sampling (ADC linearization & CT phase comp)        |
-|          |                                                                                         |
-|          v                                                                                         |
-|    [ 2. PREDICT ]   -->  Day-Ahead Market (HEnEx DAM) hourly spot prices & facility baseline load  |
-|          |                                                                                         |
-|          v                                                                                         |
-|    [ 3. OPTIMIZE ]  -->  SciPy HiGHS MILP scheduler: min sum(C_t * P_t) s.t. physical constraints   |
-|          |                                                                                         |
-|          v                                                                                         |
-|    [ 4. ACT ]       -->  Actionable recommendations via Telegram, Viber & Web Dashboard            |
-|          |               (e.g., "Shift Defrost Rack A to 16:00 -> Avoids 6.8 kW peak, saves €14.20")|
-|          v                                                                                         |
-|    [ 5. VERIFY ]    -->  Post-intervention telemetry audit vs assumed counterfactual baseline (estimated €) |
-|                                                                                                    |
-+----------------------------------------------------------------------------------------------------+
-```
+| Evaluation | Evidence and scope |
+|---|---|
+| Day-ahead ML | [Ten-building BDG2 cohort](reports/real_data/FULL_DATASET_MULTI_BUILDING_BENCHMARK.md): MLP WAPE 7.62–28.50%, improving on previous-day persistence at 8 of 10 selected buildings; convenience sample, not a representative fleet. |
+| Runtime model | [Full-year replay on three sites](reports/real_data/RUNTIME_FORECAST_BENCHMARK.md): WAPE 29.71%, 19.49%, 8.62%, compared with previous-day 32.56%, 19.83%, 8.93%. |
+| Monthly ML | [Wolf retail 2017](reports/real_data/MONTHLY_NEURAL_NETWORK_BENCHMARK.md): full-day forecasts issued at midnight, with baselines and excluded days disclosed. |
+| Dispatch | [Real-data scenarios](reports/real_data/REPORT.md): assumed tariffs/battery, including perfect-foresight scenarios; no achieved facility savings. |
+| Firmware | ESP32 PlatformIO build and native C++ behavior regressions; physical accuracy and installation are not certified. |
+| Tariffs | [Formula regression benchmark](docs/tariff_validation_report.md): synthetic expected bills check implementation consistency, not independent utility-bill reconciliation. |
 
-### Empirical Results & Audit Summary
+Research dependencies: `python -m pip install -e ".[dev,research,firmware]"`. Run `python -m pytest -q`, `python -m platformio run -d firmware`, and the evaluation scripts linked in the dossier. Data attribution and CC BY-SA requirements are recorded in the reports.
 
-| Validation Dimension | Metric | Result | Benchmark Reference |
-|---|---|:---:|---|
-| **Peak Demand Curtailment** | Load Reduction in Peak Tariff Windows | **18.4%** | Illustrative profile result; field validation not established here |
-| **Surcharge Avoidance** | Avoided Capacity Breaches & Spot Spikes | **€137 – €284 / mo** | DEDDIE capacity surcharge avoidance model |
-| **Tariff & Bill Calculation** | Line-Item Discrepancy across Utility Bills | **0.00%** | **198 / 198 line items** verified against synthetic formula benchmark ([`docs/tariff_validation_report.md`](docs/tariff_validation_report.md)) |
-| **Hardware Measurement Uncertainty** | Current & Active Power Error | **< 0.35% (I) / < 0.20% (P)** | Simulation comparison, not hardware certification ([`docs/measurement_uncertainty_report.md`](docs/measurement_uncertainty_report.md)) |
-| **Expanded Uncertainty ($k=2$)** | 95% Confidence Interval Budget | **±1.35%** | ISO/IEC Guide 98-3 (GUM) error budget |
-| **MILP Optimization Latency** | 24-Hour Horizon Solve Time | **< 25 ms** | SciPy HiGHS solver (< 100 ms real-time ceiling) |
-| **Test Suite Coverage** | Passing Unit, Integration & E2E Tests | **603 / 603 (100%)** | Full test suite execution across all layers |
-
----
 
 ## Documentation Index
 

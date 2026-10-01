@@ -24,6 +24,7 @@
 #include <ArduinoJson.h>
 #include "power_calc.h"
 #include "ring_buffer.h"
+#include "telemetry_delivery.h"
 
 namespace ems {
 
@@ -101,7 +102,7 @@ public:
      * @param snapshot System power snapshot from PowerCalculator
      * @param predicted_next_kw Optional on-device edge forecast for next hour
      * @param projected_peak_breach Optional flag for predicted capacity breach
-     * @return true if transmitted or queued successfully
+     * @return true only when transmitted; false when buffered for retry or permanently rejected.
      */
     bool dispatchTelemetry(const SystemPowerSnapshot& snapshot, float predicted_next_kw = -1.0f, bool projected_peak_breach = false);
 
@@ -161,7 +162,7 @@ private:
 
     void handleWiFiReconnect(uint32_t current_millis);
     void handleMqttReconnect(uint32_t current_millis);
-    bool sendRestPayload(const String& json_payload);
+    DeliveryOutcome sendRestPayload(const String& json_payload);
     bool sendMqttPayload(const String& json_payload);
     void flushQueue(uint8_t max_records_per_loop);
 };

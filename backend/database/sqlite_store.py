@@ -17,7 +17,7 @@ import os
 import sqlite3
 import threading
 import uuid
-from collections.abc import Generator
+from collections.abc import Callable, Generator
 from contextlib import contextmanager
 from datetime import date, datetime, timezone
 from pathlib import Path
@@ -237,6 +237,10 @@ CREATE INDEX IF NOT EXISTS idx_schedules_facility_date ON generated_schedules(fa
 """
 
 
+class TelemetryOrderError(ValueError):
+    """Reading timestamp does not advance the meter stream."""
+
+
 class SQLiteStore:
     """Thread-safe SQLite storage engine with WAL mode and time-series query capabilities."""
 
@@ -412,8 +416,15 @@ class SQLiteStore:
         self,
         payload: TelemetryPayload | dict[str, Any],
         cost_result: Any | None = None,
+        *,
+        cost_factory: Callable[[float], Any] | None = None,
     ) -> int:
         """Store a telemetry reading and update daily cost aggregates.
+
+        Timestamps must increase strictly for each facility/device stream. Counter
+        resets establish a zero-delta baseline; the next reading resumes counting.
+        Daily totals use UTC and assign the interval delta to its ending reading.
+        cost_factory, when supplied, prices that same delta under the writer lock.
 
         Returns:
             The inserted telemetry reading ID.
@@ -447,28 +458,43 @@ class SQLiteStore:
             rssi = float(payload.get("wifi_rssi_dbm", -60.0))
             phases_dict = payload.get("phases", {})
 
-        # Ensure timestamp is formatted consistently as ISO 8601 string
-        if isinstance(ts, datetime):
-            ts_str = ts.astimezone(timezone.utc).isoformat()
-            reading_date = ts.date()
-        else:
-            ts_str = str(ts)
-            try:
-                reading_date = datetime.fromisoformat(ts_str.replace("Z", "+00:00")).date()
-            except Exception:
-                reading_date = datetime.now(timezone.utc).date()
+        # Normalize both model and dictionary timestamps to UTC, including aggregate day.
+        ts = ts if isinstance(ts, datetime) else datetime.fromisoformat(str(ts).replace("Z", "+00:00"))
+        if ts.tzinfo is None:
+            ts = ts.replace(tzinfo=timezone.utc)
+        ts = ts.astimezone(timezone.utc)
+        ts_str = ts.isoformat()
+        reading_date = ts.date()
 
         phases_json = json.dumps(phases_dict)
 
-        # Cost metrics extraction
-        cost_h = getattr(cost_result, "running_cost_eur_per_h", 0.0) if cost_result else 0.0
-        unit_rate = getattr(cost_result, "current_rate_eur_per_kwh", 0.0) if cost_result else 0.0
-        incremental_cost = getattr(cost_result, "incremental_cost_eur", 0.0) if cost_result else 0.0
-        is_peak = 1 if getattr(cost_result, "is_peak_window", False) else 0
-        is_excess = 1 if getattr(cost_result, "is_excess_breach", False) else 0
-        projected_penalty = getattr(cost_result, "projected_excess_penalty_eur", 0.0) if cost_result else 0.0
-
         with self.connection() as conn:
+            # Acquire SQLite's writer lock before reading the preceding counter. This
+            # serializes independent processes as well as threads using this store.
+            conn.execute("BEGIN IMMEDIATE")
+            previous = conn.execute(
+                "SELECT timestamp, cumulative_energy_kwh FROM telemetry_readings "
+                "WHERE facility_id = ? AND device_id = ? "
+                "ORDER BY julianday(timestamp) DESC, id DESC LIMIT 1",
+                (facility_id, device_id),
+            ).fetchone()
+            if previous:
+                previous_ts = datetime.fromisoformat(previous["timestamp"].replace("Z", "+00:00"))
+                if previous_ts.tzinfo is None:
+                    previous_ts = previous_ts.replace(tzinfo=timezone.utc)
+                if ts <= previous_ts:
+                    raise TelemetryOrderError("Reading timestamp must be newer than the previous reading for this device")
+            delta_kwh = max(0.0, kwh - previous["cumulative_energy_kwh"]) if previous else 0.0
+            if cost_factory is not None:
+                cost_result = cost_factory(delta_kwh)
+            # Cost metrics extraction
+            cost_h = getattr(cost_result, "running_cost_eur_per_h", 0.0) if cost_result else 0.0
+            unit_rate = getattr(cost_result, "current_rate_eur_per_kwh", 0.0) if cost_result else 0.0
+            incremental_cost = getattr(cost_result, "incremental_cost_eur", 0.0) if cost_result else 0.0
+            is_peak = 1 if getattr(cost_result, "is_peak_window", False) else 0
+            is_excess = 1 if getattr(cost_result, "is_excess_breach", False) else 0
+            projected_penalty = getattr(cost_result, "projected_excess_penalty_eur", 0.0) if cost_result else 0.0
+
             # Auto-provision facility if not yet recorded to prevent foreign key violation
             fac_exists = conn.execute(
                 "SELECT 1 FROM facility_configs WHERE facility_id = ?;", (facility_id,)
@@ -516,22 +542,6 @@ class SQLiteStore:
                 ),
             )
             reading_id = cursor.lastrowid
-
-            # Calculate energy delta for daily aggregate
-            # Query the previous reading for this facility
-            prev_reading = conn.execute(
-                """
-                SELECT cumulative_energy_kwh FROM telemetry_readings
-                WHERE facility_id = ? AND id < ?
-                ORDER BY id DESC LIMIT 1;
-                """,
-                (facility_id, reading_id),
-            ).fetchone()
-
-            if prev_reading and prev_reading["cumulative_energy_kwh"] is not None:
-                delta_kwh = max(0.0, kwh - prev_reading["cumulative_energy_kwh"])
-            else:
-                delta_kwh = 0.0
 
             peak_kwh = delta_kwh if is_peak else 0.0
             offpeak_kwh = delta_kwh if not is_peak else 0.0

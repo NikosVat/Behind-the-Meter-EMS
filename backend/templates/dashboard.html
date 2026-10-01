@@ -61,6 +61,10 @@
         </div>
       </div>
 
+      <label class="text-xs text-slate-400">API key
+        <input id="apiKeyInput" type="password" autocomplete="off" placeholder="Secured server key"
+          class="bg-slate-950 border border-slate-700 rounded px-2 py-1 text-white" />
+      </label>
       <!-- Facility Selector & Live Status Indicator -->
       <div class="flex items-center space-x-4">
         <div class="flex items-center bg-slate-800/80 border border-slate-700 rounded-lg px-3 py-1.5">
@@ -677,6 +681,7 @@
         </div>
 
         <!-- Warnings & Assumptions -->
+        <pre id="scheduleEvidence" class="whitespace-pre-wrap text-xs text-slate-400 bg-slate-900 rounded-xl p-4"></pre>
         <div id="scheduleWarningsContainer" class="hidden bg-slate-900 border border-amber-500/30 rounded-2xl p-4 space-y-2">
           <div class="text-xs font-bold text-amber-400 uppercase tracking-wider">Προειδοποιήσεις & Παραδοχές Επιλυτή:</div>
           <ul id="scheduleWarningsList" class="text-xs text-slate-300 space-y-1 list-disc list-inside"></ul>
@@ -817,6 +822,14 @@
     let loadChart = null;
     let currentFacilityId = document.getElementById('facilitySelect').value;
 
+    // Key stays in this page only; never embed a server secret or persist it in browser storage.
+    async function apiFetch(url, options = {}) {
+      const headers = new Headers(options.headers || {});
+      const key = document.getElementById('apiKeyInput').value;
+      if (key) headers.set('X-API-Key', key);
+      return window.fetch(url, { ...options, headers });
+    }
+
     // Initialize Chart.js
     function initChart() {
       const ctx = document.getElementById('loadTimelineChart').getContext('2d');
@@ -891,8 +904,8 @@
     // Fetch and populate live metrics
     async function refreshDashboard() {
       try {
-        const res = await fetch(`/api/v1/dashboard/metrics/${currentFacilityId}`);
-        if (!res.ok) return;
+        const res = await apiFetch(`/api/v1/dashboard/metrics/${currentFacilityId}`);
+        if (!res.ok) { document.getElementById('liveStatusText').textContent = res.status === 401 ? 'API KEY REQUIRED' : 'TELEMETRY UNAVAILABLE'; return; }
         const data = await res.json();
 
         // 1. KPI Cards
@@ -1020,7 +1033,7 @@
         saveBtn.disabled = true;
         saveBtn.classList.add('opacity-75');
 
-        const res = await fetch(`/api/v1/dashboard/config/${currentFacilityId}`, {
+        const res = await apiFetch(`/api/v1/dashboard/config/${currentFacilityId}`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify(payload)
@@ -1082,7 +1095,7 @@
 
       try {
         // 1. Fetch facility schedule settings
-        const settingsRes = await fetch(`/api/v1/facilities/${currentFacilityId}/schedule-settings`);
+        const settingsRes = await apiFetch(`/api/v1/facilities/${currentFacilityId}/schedule-settings`);
         if (settingsRes.ok) {
           const s = await settingsRes.json();
           document.getElementById('schedResolution').value = s.time_step_minutes;
@@ -1101,7 +1114,7 @@
     }
 
     async function reloadAssetsTable() {
-      const res = await fetch(`/api/v1/facilities/${currentFacilityId}/assets`);
+      const res = await apiFetch(`/api/v1/facilities/${currentFacilityId}/assets`);
       const tbody = document.getElementById('assetsTableBody');
       if (!res.ok) {
         tbody.innerHTML = '<tr><td colspan="8" class="text-center py-4 text-rose-400">Σφάλμα ανάκτησης εξοπλισμού.</td></tr>';
@@ -1147,9 +1160,9 @@
     }
 
     async function reloadSavedSchedules() {
-      const res = await fetch(`/api/v1/facilities/${currentFacilityId}/schedules`);
+      const res = await apiFetch(`/api/v1/facilities/${currentFacilityId}/schedules`);
       const tbody = document.getElementById('savedSchedulesTableBody');
-      if (!res.ok) return;
+      if (!res.ok) { document.getElementById('liveStatusText').textContent = res.status === 401 ? 'API KEY REQUIRED' : 'TELEMETRY UNAVAILABLE'; return; }
       const schedules = await res.json();
       if (schedules.length === 0) {
         tbody.innerHTML = '<tr><td colspan="7" class="text-center py-4 text-slate-500">Δεν υπάρχουν αποθηκευμένα προγράμματα.</td></tr>';
@@ -1172,7 +1185,7 @@
 
     async function loadSavedSchedule(scheduleId) {
       try {
-        const res = await fetch(`/api/v1/facilities/${currentFacilityId}/schedules/${scheduleId}`);
+        const res = await apiFetch(`/api/v1/facilities/${currentFacilityId}/schedules/${scheduleId}`);
         if (res.ok) {
           const schedule = await res.json();
           renderScheduleResults(schedule);
@@ -1261,13 +1274,13 @@
       try {
         let res;
         if (assetId) {
-          res = await fetch(`/api/v1/facilities/${currentFacilityId}/assets/${assetId}`, {
+          res = await apiFetch(`/api/v1/facilities/${currentFacilityId}/assets/${assetId}`, {
             method: 'PUT',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify(payload)
           });
         } else {
-          res = await fetch(`/api/v1/facilities/${currentFacilityId}/assets`, {
+          res = await apiFetch(`/api/v1/facilities/${currentFacilityId}/assets`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify(payload)
@@ -1288,7 +1301,7 @@
 
     async function toggleAssetEnabled(assetId, enabled) {
       try {
-        await fetch(`/api/v1/facilities/${currentFacilityId}/assets/${assetId}`, {
+        await apiFetch(`/api/v1/facilities/${currentFacilityId}/assets/${assetId}`, {
           method: 'PUT',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ enabled: enabled })
@@ -1301,7 +1314,7 @@
     async function deleteAsset(assetId) {
       if (!confirm('Είστε βέβαιοι ότι θέλετε να διαγράψετε αυτή τη συσκευή;')) return;
       try {
-        const res = await fetch(`/api/v1/facilities/${currentFacilityId}/assets/${assetId}`, {
+        const res = await apiFetch(`/api/v1/facilities/${currentFacilityId}/assets/${assetId}`, {
           method: 'DELETE'
         });
         if (res.ok) {
@@ -1353,7 +1366,7 @@
         btn.classList.add('opacity-75');
         statusPill.textContent = 'Επίλυση MILP σε εξέλιξη...';
 
-        const res = await fetch(`/api/v1/facilities/${currentFacilityId}/schedules/preview`, {
+        const res = await apiFetch(`/api/v1/facilities/${currentFacilityId}/schedules/preview`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify(payload)
@@ -1364,7 +1377,7 @@
           lastGeneratedSchedule = schedule;
           renderScheduleResults(schedule);
           document.getElementById('btnSaveSchedule').disabled = false;
-          statusPill.textContent = `Βέλτιστη λύση (${schedule.time_step_minutes}m, ${schedule.items.length} συσκευές)`;
+          statusPill.textContent = schedule.is_demo ? 'ΕΠΙΔΕΙΞΗ — ενδεικτικές τιμές/δεδομένα' : `Συμβουλευτικό πρόγραμμα (${schedule.time_step_minutes}m, ${schedule.items.length} συσκευές)`;
         } else {
           const err = await res.json();
           alert('Σφάλμα βελτιστοποίησης: ' + (err.detail || 'Αδυναμία εύρεσης εφικτού προγράμματος'));
@@ -1392,7 +1405,7 @@
 
       try {
         btn.disabled = true;
-        const res = await fetch(`/api/v1/facilities/${currentFacilityId}/schedules/save`, {
+        const res = await apiFetch(`/api/v1/facilities/${currentFacilityId}/schedules/save`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify(payload)
@@ -1413,6 +1426,9 @@
 
     function renderScheduleResults(schedule) {
       document.getElementById('scheduleResultsSection').classList.remove('hidden');
+      document.getElementById('schedStatusPill').textContent = schedule.is_demo
+        ? 'ΕΠΙΔΕΙΞΗ — ενδεικτικά δεδομένα/τιμές'
+        : `Συμβουλευτικό πρόγραμμα — ${schedule.input_source}`;
 
       // 1. KPIs
       document.getElementById('kpiSavingsEur').textContent = schedule.estimated_savings_eur.toFixed(2);
@@ -1576,10 +1592,17 @@
       } else {
         warnContainer.classList.add('hidden');
       }
+      // Show model, pricing and provenance for saved schedules as well as previews.
+      const evidence = document.getElementById('scheduleEvidence');
+      evidence.textContent = (schedule.assumptions || []).join('\n');
     }
 
     // Initialize on load
     window.addEventListener('DOMContentLoaded', () => {
+      document.getElementById('apiKeyInput').addEventListener('change', () => {
+        refreshDashboard();
+        loadScheduleStudioData();
+      });
       initChart();
       refreshDashboard();
       setInterval(refreshDashboard, 2000);

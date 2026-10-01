@@ -17,7 +17,21 @@ http://localhost:8000/api/v1
 ## Authentication & Headers
 - **Content-Type:** `application/json`
 - **Accept:** `application/json`
-- *(Optional Production Mode)* `X-API-Key: <facility_secret_key>`
+- `X-API-Key: <server_secret_key>` is required whenever `API_KEY` is configured. Production startup rejects an empty key. A shared key is a single-site control, not tenant authorization.
+
+The dashboard HTML and health endpoint are public; dashboard data/configuration require the key. Viber callbacks use content-signature HMAC; management routes use the API key. Simulator and E2E runner read `API_KEY`; firmware reads `EMS_API_KEY` from untracked local secrets.
+
+Telemetry timestamps must increase per facility/device. Late or duplicate readings receive HTTP 409 before storage or billing. Energy and cost use the same atomic counter delta. Historical aggregates from older versions are not repaired automatically.
+
+### Schedule Studio and runtime forecasting
+
+`GET /api/v1/facilities/{id}/load-forecast?schedule_date=YYYY-MM-DD` returns the load vector, model, local-midnight origin, validation MAEs, training hours, source-reported measurement methods, and warnings. It needs one identifiable meter and a complete preceding local day. Sparse history uses persistence; ML selection needs 21 complete eligible feature days plus lag history. Future measurements are never used.
+
+Preview/save requests accept `data_mode` (`auto`, `demo`, `telemetry`). Auto attempts forecasting then clearly labels fallback data. Missing tariffs always mark a demonstration. Telemetry mode rejects missing history and requires explicit effective marginal tariffs. Profiles need 24 hourly entries or exactly the selected resolution's slot count, all finite; loads must be non-negative. Negative effective tariffs are supported.
+
+Whole-facility predictions plus additional equipment may double-count existing loads; operational scheduling needs an isolated background profile. Margins are policy buffers, not P95. Capacity slack produces warnings and must block operational adoption. Cost differences can include unexecuted optional tasks.
+
+The horizon is local 00:00–24:00; `latest_finish="24:00"` is supported. Overnight windows use only their pre-midnight portion. Tasks requiring next-day slots return 422 instead of borrowing current-morning profiles. DST dates return 422 pending 23/25-hour support.
 
 ---
 

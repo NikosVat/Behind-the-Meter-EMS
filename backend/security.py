@@ -2,10 +2,11 @@
 
 from __future__ import annotations
 
+import hashlib
 import hmac
 from typing import Annotated
 
-from fastapi import HTTPException, Security, status
+from fastapi import HTTPException, Request, Security, status
 from fastapi.security import APIKeyHeader
 
 from backend.config import settings
@@ -37,4 +38,32 @@ async def verify_api_key(api_key: Annotated[str | None, Security(api_key_header)
             headers={"WWW-Authenticate": "ApiKey"},
         )
 
+    return True
+
+
+async def verify_dashboard_access(
+    request: Request,
+    api_key: Annotated[str | None, Security(api_key_header)] = None,
+) -> bool:
+    """Allow the login shell; protect every dashboard data/configuration route."""
+    if request.url.path == "/dashboard":
+        return True
+    return await verify_api_key(api_key)
+
+
+async def verify_viber_access(
+    request: Request,
+    api_key: Annotated[str | None, Security(api_key_header)] = None,
+) -> bool:
+    """Viber callbacks authenticate with HMAC; management routes use the API key."""
+    if request.url.path != f"{settings.API_V1_STR}/viber/webhook":
+        return await verify_api_key(api_key)
+    token = settings.VIBER_BOT_TOKEN or settings.VIBER_AUTH_TOKEN
+    if token:
+        signature = request.headers.get("X-Viber-Content-Signature", "")
+        expected = hmac.new(token.encode("utf-8"), await request.body(), hashlib.sha256).hexdigest()
+        if not hmac.compare_digest(signature, expected):
+            raise HTTPException(status_code=403, detail="Invalid or missing Viber signature")
+    elif settings.ENVIRONMENT.lower() == "production":
+        raise HTTPException(status_code=503, detail="Viber webhook authentication is not configured")
     return True

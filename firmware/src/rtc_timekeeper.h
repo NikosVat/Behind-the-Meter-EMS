@@ -94,9 +94,10 @@ public:
     TimeSyncSource getSyncSource() const { return sync_source_; }
 
     /**
-     * @brief Check if time source is reliable (epoch >= MIN_VALID_EPOCH).
+     * @brief Reliable wall time requires a running hardware RTC or an NTP sync.
+     * NVS/build floors cannot account for time spent powered off.
      */
-    bool isReliable() const { return current_epoch_base_ >= MIN_VALID_EPOCH; }
+    bool isReliable() const { return sync_source_ == TimeSyncSource::RTC_HARDWARE || sync_source_ == TimeSyncSource::NTP_SYNCED; }
 
     /**
      * @brief Check if physical DS3231 hardware was detected on I2C bus.

@@ -21,11 +21,14 @@
 
 #include <Arduino.h>
 #include <time.h>
+#include <esp_sntp.h>
 #include "ct_sampler.h"
 #include "power_calc.h"
 #include "telemetry_client.h"
 #include "edge_forecast.h"
 #include "rtc_timekeeper.h"
+#include "ntp_sync_handoff.h"
+#include "hourly_power_accumulator.h"
 
 #if __has_include("secrets.h")
 #include "secrets.h"
@@ -62,7 +65,12 @@ static EdgeForecaster edge_forecaster;
 static ems::RtcTimekeeper rtc_timekeeper;
 
 static uint32_t last_telemetry_time = 0;
-static int last_recorded_hour = -1;
+static ems::NtpSyncHandoff ntp_sync;
+static ems::HourlyPowerAccumulator hourly_power;
+
+static void onNtpSync(struct timeval* synced_time) {
+    if (synced_time) ntp_sync.notify(static_cast<uint32_t>(synced_time->tv_sec));
+}
 
 void setup() {
     Serial.begin(SERIAL_BAUD_RATE);
@@ -104,6 +112,7 @@ void setup() {
     telemetry_client.configureMqtt(EMS_MQTT_BROKER, 8883, "ems/telemetry");
     telemetry_client.setDeviceIdentity("esp32-ems-001", "bakery-central-athens");
     telemetry_client.setMode(ems::TelemetryMode::REST_ONLY);
+    sntp_set_time_sync_notification_cb(onNtpSync);
     telemetry_client.begin();
     Serial.println(F("[SETUP] Telemetry Client initialized."));
 
@@ -119,6 +128,18 @@ void loop() {
 
     // Run non-blocking telemetry network loop (Wi-Fi reconnect + queue flush)
     telemetry_client.loop(now);
+    const uint32_t epoch_before_sync = rtc_timekeeper.getCurrentEpoch(millis());
+    const bool trusted_before_sync = rtc_timekeeper.isReliable();
+    if (ntp_sync.apply(rtc_timekeeper)) {
+        const int64_t correction = static_cast<int64_t>(rtc_timekeeper.getCurrentEpoch(millis())) - epoch_before_sync;
+        if (!trusted_before_sync || correction > 5 || correction < -5) {
+            // A clock correction must not join observations from unrelated calendar days.
+            hourly_power.reset();
+            edge_forecaster.resetObservationHistory();
+        }
+    }
+    // Refresh after network work / NTP rebasing; an older millis value looks like wraparound.
+    now = millis();
 
     // Periodic 3-phase sampling and dispatch
     if (now - last_telemetry_time >= TELEMETRY_INTERVAL_MS) {
@@ -129,14 +150,10 @@ void loop() {
 
         // 2. Compute Power and Trapezoidal Cumulative Energy based on configured metrology mode
         ems::SystemPowerSnapshot snapshot;
-        if (power_calc.getMetrologyMode() == ems::MetrologyMode::MODE_B_TRUE_RMS) {
-            // Mode B: True RMS Synchronized metrology (meter measured)
-            snapshot = power_calc.update(samples, now);
-            snapshot.metrology_mode = ems::MetrologyMode::MODE_B_TRUE_RMS;
-            snapshot.measurement_method = "meter_measured";
-        } else {
-            // Mode A: CT-Only baseline estimation (apparent power measured, active estimated)
-            snapshot = power_calc.update(samples, now);
+        if (!power_calc.tryUpdateCtOnly(samples, now, snapshot)) {
+            // No synchronized voltage/meter acquisition driver is installed in this hardware path.
+            Serial.println(F("[METROLOGY] Mode B unavailable: integrate calibrated meter acquisition before dispatch."));
+            return;
         }
 
         // 3. Resilient Timekeeping: obtain valid Greek calendar components for tinyML indexing
@@ -145,6 +162,10 @@ void loop() {
         // Automatic Greek timezone calculation (EET UTC+2 in winter, EEST UTC+3 in summer)
         uint32_t current_epoch = rtc_timekeeper.getTimeInfo(now, current_hour, current_weekday);
         snapshot.timestamp_epoch = current_epoch;
+        if (!rtc_timekeeper.isReliable()) {
+            Serial.println(F("[TIME] Waiting for valid DS3231 or NTP before dated telemetry and profile adaptation."));
+            return;
+        }
 
         // Feed real-time power sample to edge forecaster's momentum filter
         edge_forecaster.updateRecentPowerSample(snapshot.total_active_power_kw);
@@ -154,16 +175,14 @@ void loop() {
         bool projected_breach = edge_forecaster.isProjectedBreach(predicted_p95_kw, CONTRACTED_CAPACITY_KW);
 
         // Hourly accumulation for daily profile adaptation
-        if (current_hour != last_recorded_hour) {
-            if (last_recorded_hour != -1) {
-                edge_forecaster.recordHourlyPower(current_weekday, last_recorded_hour, snapshot.total_active_power_kw);
-                if (current_hour == 0) {
-                    // Midnight: perform daily continual adaptation for yesterday
-                    int yesterday_wday = (current_weekday == 0) ? 6 : (current_weekday - 1);
-                    edge_forecaster.performDailyAdaptation(yesterday_wday);
-                }
+        ems::CompletedPowerHour completed;
+        if (hourly_power.addSample(current_epoch, current_hour, current_weekday,
+                                  ems::RtcTimekeeper::getGreekTimezoneOffsetHours(current_epoch),
+                                  snapshot.total_active_power_kw, completed)) {
+            edge_forecaster.recordHourlyPower(completed.weekday, completed.hour, completed.mean_kw);
+            if (completed.day_completed) {
+                edge_forecaster.performDailyAdaptation(completed.weekday);
             }
-            last_recorded_hour = current_hour;
         }
 
         // Print operational metrics and edge forecast to Serial console

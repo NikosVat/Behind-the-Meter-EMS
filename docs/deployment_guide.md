@@ -1,5 +1,11 @@
 # Production Deployment & Operations Guide for Greek Commercial SMBs
 
+Current prototype deployment controls (2026-10-01): set a nonempty `API_KEY` with `ENVIRONMENT=production`; use TLS and restricted access. Enter the key in the dashboard, set `EMS_API_KEY` in untracked firmware secrets, and supply `API_KEY` to simulator/E2E clients. A shared key does not establish multi-tenant authorization. Physical installation and hardware accuracy are not certified by software tests.
+
+Install `.[dev,research,firmware]` for the documented complete verification workflow. The firmware extra supplies PlatformIO and a tested Zig C++ fallback for native tests; an installed C++ compiler may be used instead. Research scripts require cached BDG2 data.
+
+Telemetry HTTP 409 is a terminal stale/duplicate rejection: firmware removes that queue entry with a diagnostic, without claiming delivery. Other authentication/network/server failures remain retries. Earlier faulty aggregates require a separately reviewed rebuild.
+
 **System Target:** Greek Commercial Behind-the-Meter Energy Management System (EMS)  
 **Target Enterprises:** Commercial Bakeries (Αρτοποιεία), Cold Storage Logistics (Ψυκτικοί Θάλαμοι), Boutique Hotels (Ξενοδοχεία)  
 **Contract Schemes:** DEDDIE / ADMIE Commercial Low & Medium Voltage (Γ21, Γ22, Γ23)  

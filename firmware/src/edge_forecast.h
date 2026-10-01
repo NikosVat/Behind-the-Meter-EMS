@@ -74,6 +74,9 @@ public:
      */
     void recordHourlyPower(int weekday, int hour, float actual_kw);
 
+    // Discard observations when wall time jumps, preserving learned profile matrices.
+    void resetObservationHistory();
+
     /**
      * @brief Perform daily continual adaptation (micro-update) for a completed day.
      * Updates both mean and volatility matrices using EMA and clamps within safety bounds.

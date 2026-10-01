@@ -10,6 +10,7 @@ Standalone simulation command-line interface for Behind-the-Meter EMS testing:
 """
 
 import argparse
+import os
 import sys
 import time
 from collections.abc import Callable
@@ -196,6 +197,9 @@ def run_simulation(
 
     own_client = False
     client = http_client
+    request_headers = {"Content-Type": "application/json"}
+    if os.getenv("API_KEY"):
+        request_headers["X-API-Key"] = os.environ["API_KEY"]
     if effective_url is not None and client is None:
         client = httpx.Client(timeout=5.0)
         own_client = True
@@ -219,7 +223,7 @@ def run_simulation(
                     response = client.post(
                         effective_url,
                         content=payload_json,
-                        headers={"Content-Type": "application/json"},
+                        headers=request_headers,
                     )
                     if response.status_code not in (200, 201, 202):
                         logger(f"Warning: HTTP {response.status_code} response from {effective_url}")

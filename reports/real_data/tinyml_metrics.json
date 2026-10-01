@@ -1,0 +1,98 @@
+[
+  {
+    "building": "Panther_retail_Lester",
+    "valid_test_days": 347,
+    "static_day_ahead": {
+      "mae_kw": 4.123,
+      "rmse_kw": 5.628,
+      "wape_pct": 60.96
+    },
+    "adaptive_day_ahead": {
+      "mae_kw": 2.128,
+      "rmse_kw": 2.928,
+      "wape_pct": 31.45
+    },
+    "adaptive_next_hour": {
+      "mae_kw": 1.113,
+      "rmse_kw": 1.552,
+      "wape_pct": 16.21
+    },
+    "heuristic_coverage_pct": 97.93,
+    "heuristic_exceedance_hours": 165,
+    "contracted_capacity_kw": null,
+    "previous_day": {
+      "mae_kw": 1.341,
+      "rmse_kw": 2.07,
+      "wape_pct": 19.83
+    },
+    "previous_week": {
+      "mae_kw": 1.813,
+      "rmse_kw": 2.59,
+      "wape_pct": 26.8
+    }
+  },
+  {
+    "building": "Wolf_retail_Marcella",
+    "valid_test_days": 357,
+    "static_day_ahead": {
+      "mae_kw": 1.739,
+      "rmse_kw": 2.515,
+      "wape_pct": 25.7
+    },
+    "adaptive_day_ahead": {
+      "mae_kw": 1.731,
+      "rmse_kw": 2.51,
+      "wape_pct": 25.59
+    },
+    "adaptive_next_hour": {
+      "mae_kw": 0.938,
+      "rmse_kw": 1.357,
+      "wape_pct": 13.72
+    },
+    "heuristic_coverage_pct": 98.68,
+    "heuristic_exceedance_hours": 108,
+    "contracted_capacity_kw": null,
+    "previous_day": {
+      "mae_kw": 2.202,
+      "rmse_kw": 3.312,
+      "wape_pct": 32.56
+    },
+    "previous_week": {
+      "mae_kw": 2.355,
+      "rmse_kw": 3.47,
+      "wape_pct": 34.81
+    }
+  },
+  {
+    "building": "Lamb_office_Peggy",
+    "valid_test_days": 357,
+    "static_day_ahead": {
+      "mae_kw": 3.106,
+      "rmse_kw": 4.055,
+      "wape_pct": 1109.23
+    },
+    "adaptive_day_ahead": {
+      "mae_kw": 0.853,
+      "rmse_kw": 1.305,
+      "wape_pct": 304.74
+    },
+    "adaptive_next_hour": {
+      "mae_kw": 0.367,
+      "rmse_kw": 0.588,
+      "wape_pct": 129.29
+    },
+    "heuristic_coverage_pct": 99.77,
+    "heuristic_exceedance_hours": 19,
+    "contracted_capacity_kw": null,
+    "previous_day": {
+      "mae_kw": 0.076,
+      "rmse_kw": 0.502,
+      "wape_pct": 27.18
+    },
+    "previous_week": {
+      "mae_kw": 0.175,
+      "rmse_kw": 0.78,
+      "wape_pct": 62.48
+    }
+  }
+]

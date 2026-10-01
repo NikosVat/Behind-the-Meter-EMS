@@ -28,6 +28,16 @@ dev = [
     "pytest>=8.0.0",
     "pytest-asyncio>=0.23.0",
 ]
+research = [
+    "pandas>=2.0,<3",
+    "scikit-learn>=1.3,<2",
+    "matplotlib>=3.7,<4",
+    "threadpoolctl>=3.1,<4",
+]
+firmware = [
+    "platformio>=6.2,<7",
+    "ziglang==0.16.0",
+]
 
 [tool.setuptools.packages.find]
 where = ["."]
@@ -35,7 +45,7 @@ include = ["backend*", "bot*", "simulator*", "tariff_engine*", "optimization_eng
 exclude = ["tests*", "firmware*", "docs*", "scripts*"]
 
 [tool.setuptools.package-data]
-backend = ["templates/*.html"]
+backend = ["templates/*.html", "market/data/*.json"]
 
 [tool.pytest.ini_options]
 minversion = "8.0"
@@ -55,4 +65,3 @@ ignore = [
     "BLE001",  # Do not catch blind exception
     "S110",    # try-except-pass
 ]
-

@@ -15,7 +15,8 @@ Solves the multi-resolution constrained equipment scheduling problem:
 from __future__ import annotations
 
 import math
-from datetime import date, datetime, timezone
+from datetime import date, datetime, timedelta, timezone
+from zoneinfo import ZoneInfo
 
 import numpy as np
 from scipy.optimize import Bounds, LinearConstraint, milp
@@ -48,8 +49,15 @@ class EquipmentSchedulingService:
         self.time_step_minutes = settings.time_step_minutes
         self.dt = self.time_step_minutes / 60.0  # slot duration in hours
         self.num_slots = int(1440 / self.time_step_minutes)
-        self.input_source = input_source
-        self.is_demo = is_demo
+        self.input_source = "demo_profile" if baseline_load_kw is None else input_source
+        self.is_demo = is_demo or baseline_load_kw is None or tariff_rates_eur_kwh is None
+        # Every slot is a real operating interval; the declared date must be valid even with no assets.
+        target_date = date.fromisoformat(self.schedule_date)
+        tz = ZoneInfo(settings.timezone)
+        start = datetime.combine(target_date, datetime.min.time(), tz)
+        stop = datetime.combine(target_date + timedelta(days=1), datetime.min.time(), tz)
+        if (stop.astimezone(timezone.utc) - start.astimezone(timezone.utc)).total_seconds() != 86400:
+            raise ValueError("DST transition requires a 23/25-hour dated horizon; this scheduler supports 24-hour days")
 
         # Normalize baseline and tariffs to num_slots
         self.raw_baseline = baseline_load_kw
@@ -84,24 +92,24 @@ class EquipmentSchedulingService:
 
     def get_allowed_slots(self, earliest: str, latest: str) -> list[int]:
         """Compute allowed slots for an asset, supporting midnight-crossing windows."""
-        s_start = self.time_to_slot(earliest)
-        s_finish = self.time_to_slot(latest)
-
-        if s_start <= s_finish:
-            return list(range(s_start, s_finish + 1))
-        else:
-            # Crosses midnight (e.g. 22:00 to 06:00)
-            return list(range(s_start, self.num_slots)) + list(range(s_finish + 1))
+        start_minutes = sum(int(v) * scale for v, scale in zip(earliest.split(":"), (60, 1)))
+        finish_minutes = sum(int(v) * scale for v, scale in zip(latest.split(":"), (60, 1)))
+        first = math.ceil(start_minutes / self.time_step_minutes)
+        stop = finish_minutes // self.time_step_minutes
+        if start_minutes <= finish_minutes:
+            return list(range(first, stop))
+        # Next-day hours have different loads/prices and are outside this dated horizon.
+        return list(range(first, self.num_slots))
 
     def get_valid_start_slots(self, asset: GenericEquipmentAsset, k_slots: int) -> list[int]:
         """Compute valid start slots where asset can run contiguously within allowed window."""
         allowed_set = set(self.get_allowed_slots(asset.earliest_start, asset.latest_finish))
         valid_starts = []
-        for s in allowed_set:
+        for s in self.get_allowed_slots(asset.earliest_start, asset.latest_finish):
             # Check if all k_slots contiguous slots are within allowed_set
             all_valid = True
             for tau in range(k_slots):
-                slot = (s + tau) % self.num_slots
+                slot = s + tau
                 if slot not in allowed_set:
                     all_valid = False
                     break
@@ -115,6 +123,9 @@ class EquipmentSchedulingService:
 
     def _resample_or_default_baseline(self, raw: list[float] | None) -> list[float]:
         """Normalize baseline power array to self.num_slots."""
+        if raw is not None:
+            if len(raw) not in (24, self.num_slots) or any(not math.isfinite(x) or x < 0 for x in raw):
+                raise ValueError(f"baseline_load_kw needs 24 or {self.num_slots} finite non-negative values")
         if raw is not None and len(raw) == self.num_slots:
             return [max(0.0, float(x)) for x in raw]
         elif raw is not None and len(raw) == 24:
@@ -140,13 +151,16 @@ class EquipmentSchedulingService:
 
     def _resample_or_default_tariffs(self, raw: list[float] | None) -> list[float]:
         """Normalize tariff rate array to self.num_slots."""
+        if raw is not None:
+            if len(raw) not in (24, self.num_slots) or any(not math.isfinite(x) for x in raw):
+                raise ValueError(f"tariff_rates_eur_kwh needs 24 or {self.num_slots} finite values")
         if raw is not None and len(raw) == self.num_slots:
-            return [max(0.01, float(x)) for x in raw]
+            return [float(x) for x in raw]
         elif raw is not None and len(raw) == 24:
             ratio = self.num_slots // 24
             expanded = []
             for val in raw:
-                expanded.extend([max(0.01, float(val))] * ratio)
+                expanded.extend([float(val)] * ratio)
             return expanded[:self.num_slots]
 
         # Default Greek Commercial Tariff Γ22 (Off-peak: 0.12, Peak: 0.32, Normal: 0.20)
@@ -173,6 +187,8 @@ class EquipmentSchedulingService:
             f"Εφαρμόστηκε συντηρητικό περιθώριο αβεβαιότητας πρόγνωσης {self.settings.forecast_uncertainty_pct:.1f}% (+{self.uncertainty_margin_kw:.2f} kW).",
         ]
         warnings: list[str] = []
+        if any(a.earliest_start > a.latest_finish for a in self.assets):
+            warnings.append("Overnight windows are limited to the current date before midnight. Tasks requiring next-day hours need a longer dated horizon.")
 
         if self.is_demo:
             warnings.append("Προσοχή: Χρησιμοποιήθηκαν ενδεικτικά δεδομένα επίδειξης. Τα αποτελέσματα είναι εκτιμήσεις και όχι επαληθευμένη εξοικονόμηση.")
@@ -206,7 +222,7 @@ class EquipmentSchedulingService:
                     if asset.must_run:
                         raise ValueError(
                             f"Μη εφικτό παράθυρο για '{asset.name}': Απαιτείται συνεχής λειτουργία {asset.required_runtime_minutes} λεπτών, "
-                            f"αλλά το επιτρεπόμενο παράθυρο ({asset.earliest_start} - {asset.latest_finish}) δεν επαρκεί."
+                            f"αλλά το επιτρεπόμενο παράθυρο ({asset.earliest_start} - {asset.latest_finish}) εντός του 24ωρου δεν επαρκεί. Next-day hours require a longer dated horizon."
                         )
                     else:
                         warnings.append(f"Η προαιρετική συσκευή '{asset.name}' εξαιρέθηκε διότι το παράθυρο λειτουργίας δεν επαρκεί.")
@@ -275,7 +291,7 @@ class EquipmentSchedulingService:
 
             if not asset.must_run:
                 # Omission penalty: high priority optional assets are penalized if omitted
-                omission_penalty = (6.0 - asset.priority) * 5.0
+                omission_penalty = asset.priority * 5.0
                 add_var(f"omitted_{aid}", is_int=True, lb=0.0, ub=1.0, cost=omission_penalty)
 
         # Slot total power and capacity slacks
@@ -390,7 +406,8 @@ class EquipmentSchedulingService:
         constraints = LinearConstraint(A_matrix, lhs_bounds, rhs_bounds)
         bounds = Bounds(lower_bounds, upper_bounds)
 
-        res = milp(c=np.array(c_obj), integrality=integrality, bounds=bounds, constraints=constraints)
+        res = milp(c=np.array(c_obj), integrality=integrality, bounds=bounds, constraints=constraints,
+                   options={"time_limit": 30.0})
 
         if not res.success:
             raise ValueError(f"Ο επιλύτης δεν μπόρεσε να βρει εφικτό πρόγραμμα: {res.status} ({res.message})")
@@ -451,11 +468,12 @@ class EquipmentSchedulingService:
                 optimized_equipment_power[sl] += asset.rated_power_kw
 
             # Compute timing & human explanation
-            scheduled_slots.sort()
+            # Non-interruptible runs retain their actual start through midnight.
+            # Interruptible slots already follow operating-window order.
             first_slot = scheduled_slots[0] if scheduled_slots else 0
             last_slot = scheduled_slots[-1] if scheduled_slots else 0
             start_str = self.slot_to_time(first_slot)
-            end_str = self.slot_to_time((last_slot + 1) % self.num_slots)
+            end_str = _format_slot_to_time(last_slot + 1, self.time_step_minutes)
 
             pref_satisfied = True
             if pref_slot is not None:
@@ -471,7 +489,7 @@ class EquipmentSchedulingService:
                     rated_power_kw=asset.rated_power_kw,
                     start_time=start_str,
                     end_time=end_str,
-                    duration_minutes=asset.required_runtime_minutes,
+                    duration_minutes=len(scheduled_slots) * self.time_step_minutes,
                     scheduled_slots=scheduled_slots,
                     scheduled_power_kw=asset.rated_power_kw,
                     explanation=explanation,
@@ -481,13 +499,15 @@ class EquipmentSchedulingService:
             )
 
         # 7. Compute Baseline Comparison Load & Metrics
-        baseline_total_load = self._compute_unmanaged_baseline(active_assets)
+        baseline_total_load = self._compute_unmanaged_baseline(filtered_assets)
         optimized_total_load = np.array(self.baseline_kw) + optimized_equipment_power
 
         # Energy costs
         baseline_cost = float(np.sum(baseline_total_load * np.array(self.tariff_eur_kwh) * self.dt))
         optimized_cost = float(np.sum(optimized_total_load * np.array(self.tariff_eur_kwh) * self.dt))
-        savings_eur = max(0.0, baseline_cost - optimized_cost)
+        savings_eur = baseline_cost - optimized_cost
+        if any(i.is_omitted for i in schedule_items):
+            warnings.append("Energy-cost differences include unexecuted optional tasks; they are not equal-service savings.")
 
         baseline_peak = float(np.max(baseline_total_load))
         optimized_peak = float(np.max(optimized_total_load))
@@ -540,10 +560,15 @@ class EquipmentSchedulingService:
         for asset in assets:
             k = max(1, math.ceil(asset.required_runtime_minutes / self.time_step_minutes))
             nom_time = asset.preferred_start or asset.earliest_start
-            start_slot = self.time_to_slot(nom_time)
-
-            for tau in range(k):
-                slot = (start_slot + tau) % self.num_slots
+            desired = self.time_to_slot(nom_time)
+            if asset.interruptible:
+                allowed = self.get_allowed_slots(asset.earliest_start, asset.latest_finish)
+                slots = sorted(sorted(allowed, key=lambda slot: abs(slot - desired))[:k])
+            else:
+                valid = self.get_valid_start_slots(asset, k)
+                start_slot = min(valid, key=lambda slot: abs(slot - desired))
+                slots = range(start_slot, start_slot + k)
+            for slot in slots:
                 unmanaged_load[slot] += asset.rated_power_kw
 
         return unmanaged_load
@@ -557,7 +582,7 @@ class EquipmentSchedulingService:
     ) -> str:
         """Generate human-readable Greek operational explanation."""
         start_time = self.slot_to_time(slots[0])
-        end_time = self.slot_to_time((slots[-1] + 1) % self.num_slots)
+        end_time = _format_slot_to_time(slots[-1] + 1, self.time_step_minutes)
 
         if asset.interruptible and len(slots) > 1 and (slots[-1] - slots[0] + 1 != len(slots)):
             return f"Η συσκευή '{asset.name}' κατανεμήθηκε σε {len(slots)} διακοπτόμενες θυρίδες ({start_time} - {end_time}) για εξομάλυνση του φορτίου αιχμής."
@@ -683,4 +708,3 @@ def schedule_sme_equipment(
         )
         empty.status = "infeasible"
         return empty
-

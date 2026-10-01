@@ -1,45 +1,46 @@
-# BDG2 Full-Dataset Multi-Building ML Benchmark & Stress Test Report
+# Exploratory BDG2 commercial cohort benchmark
 
-**Date:** 2026-09-23 12:49:59 UTC
-**Dataset Source:** Building Data Genome 2 (BDG2, Miller et al., 2020)
+Fixed MLP (48,24), seed 42, trained on eligible 2016 observations and tested on 2017. All 24 hours are forecast at local midnight using only lag 24/48/168 and previous-day summaries. No intraday actuals or future weather are used; early stopping is confined to training data.
+Timestamp gaps remain missing on a regular hourly index. Zeros are retained; negative/nonfinite values, incomplete feature/target days and local DST transition/dependent days are excluded. The same eligible hours are used for both baselines and MLP. Calendar source timestamps lack offsets/folds.
 
-## 1. Multi-Meter Dataset Files Verification
+Ten predefined commercial candidates form a convenience cohort; this is not the full dataset, a representative fleet, a deployment benchmark, or a hardware test.
 
-| File Name | Status | Size (MB) | Details / Channels |
-|---|:---:|---:|---|
-| `metadata.csv` | **OK** | 0.26 | 32 channels/columns |
-| `electricity.csv` | **OK** | 166.17 | 1579 channels/columns |
-| `electricity_cleaned.csv` | **OK** | 166.87 | 1579 channels/columns |
-| `weather.csv` | **OK** | 18.56 | 10 channels/columns |
-| `solar.csv` | **OK** | 0.71 | 6 channels/columns |
-| `gas.csv` | **OK** | 19.25 | 178 channels/columns |
-| `chilledwater.csv` | **OK** | 75.19 | 556 channels/columns |
-| `water.csv` | **OK** | 14.92 | 147 channels/columns |
+## File presence and header sampling
 
-## 2. Multi-Building Commercial Cohort Neural Network Benchmark
+Only the first five rows are parsed. This checks local file presence/readability, not whole-file integrity, units, weather integration, or channel quality.
 
-All models trained on calendar year 2016 and evaluated strictly on held-out calendar year 2017.
+| File | Sample status | MB | Columns |
+|---|---|---:|---:|
+| metadata.csv | HEADER_READ | 0.26 | 32 |
+| electricity.csv | HEADER_READ | 166.17 | 1579 |
+| electricity_cleaned.csv | HEADER_READ | 166.87 | 1579 |
+| weather.csv | HEADER_READ | 18.56 | 10 |
+| solar.csv | HEADER_READ | 0.71 | 6 |
+| gas.csv | HEADER_READ | 19.25 | 178 |
+| chilledwater.csv | HEADER_READ | 75.19 | 556 |
+| water.csv | HEADER_READ | 14.92 | 147 |
 
-| Building | Type | Mean kW | Max kW | Test Hours | Train (s) | **R² Score** | **MAE (kW)** | **WAPE (%)** | **P95 Safety Coverage** |
-|---|---|---:|---:|---:|---:|:---:|---:|---:|:---:|
-| `Wolf_retail_Marcella` | Retail | 6.75 | 20.23 | 8,759 | 1.7s | **0.893** | 0.654 | 9.68% | **99.8%** |
-| `Panther_retail_Lester` | Retail | 6.72 | 24.86 | 8,749 | 0.92s | **0.917** | 0.95 | 14.13% | **99.3%** |
-| `Panther_retail_Kristina` | Retail | 32.22 | 79.69 | 8,749 | 0.79s | **0.960** | 2.184 | 6.78% | **98.7%** |
-| `Panther_retail_Felix` | Retail | 112.96 | 220.96 | 8,750 | 0.93s | **0.970** | 5.563 | 4.92% | **100.0%** |
-| `Wolf_retail_Toshia` | Retail | 70.64 | 203.16 | 8,759 | 1.72s | **0.968** | 5.694 | 8.06% | **99.7%** |
-| `Fox_food_Francesco` | Food sales and service | 62.81 | 134.19 | 8,758 | 1.13s | **0.923** | 4.537 | 7.22% | **99.3%** |
-| `Fox_food_Scott` | Food sales and service | 74.76 | 156.38 | 8,746 | 1.5s | **0.925** | 5.384 | 7.2% | **99.5%** |
-| `Hog_food_Morgan` | Food sales and service | 64.1 | 145.26 | 8,760 | 2.12s | **0.959** | 3.71 | 5.79% | **99.8%** |
-| `Panther_office_Hannah` | Office | 5.99 | 27.77 | 8,748 | 0.78s | **0.788** | 1.124 | 18.77% | **98.6%** |
-| `Panther_lodging_Russell` | Lodging/residential | 39.85 | 83.66 | 8,750 | 0.86s | **0.980** | 1.075 | 2.7% | **100.0%** |
+## Held-out 24h forecast results
 
-### Cohort Summary Statistics:
-- **Average $R^2$ Variance Explained:** **0.928** (92.8%)
-- **Average Weighted Error ($WAPE$):** **8.53%**
-- **Average P95 Safety Envelope Coverage:** **99.5%**
+| Building | Hours | Excluded days | R² | MAE kW | MLP WAPE | Previous-day WAPE | Previous-week WAPE | Heuristic coverage | Exceedance hours |
+|---|---:|---:|---:|---:|---:|---:|---:|---:|---:|
+| Wolf_retail_Marcella | 8568 | 8 | 0.211 | 1.872 | 27.68% | 32.56% | 34.81% | 95.96% | 346 |
+| Panther_retail_Lester | 8328 | 18 | 0.681 | 1.892 | 27.97% | 19.83% | 26.80% | 94.75% | 437 |
+| Panther_retail_Kristina | 8328 | 18 | 0.858 | 3.597 | 11.19% | 21.86% | 17.54% | 100.00% | 0 |
+| Panther_retail_Felix | 8328 | 18 | 0.888 | 10.956 | 9.70% | 10.92% | 16.55% | 100.00% | 0 |
+| Wolf_retail_Toshia | 8568 | 8 | 0.620 | 19.039 | 26.85% | 32.23% | 35.95% | 96.11% | 333 |
+| Fox_food_Francesco | 8568 | 8 | 0.850 | 6.133 | 9.80% | 12.08% | 17.22% | 98.27% | 148 |
+| Fox_food_Scott | 8568 | 8 | 0.872 | 6.857 | 9.19% | 11.59% | 13.20% | 99.15% | 73 |
+| Hog_food_Morgan | 8568 | 8 | 0.924 | 4.874 | 7.62% | 8.93% | 13.70% | 99.68% | 27 |
+| Panther_office_Hannah | 8328 | 18 | 0.523 | 1.707 | 28.50% | 33.33% | 33.63% | 99.06% | 78 |
+| Panther_lodging_Russell | 8328 | 18 | 0.705 | 4.376 | 10.94% | 8.72% | 18.22% | 99.99% | 1 |
 
-## 3. Findings & Conclusions
+Heuristic upper value = MLP + 1.645 × 2016 weekday/hour load standard deviation. This is not calibrated P95 or the firmware model. Exceedance coverage does not establish capacity protection. Contracted capacities, capacity breaches and penalty savings are unknown. No test-set accuracy threshold or commercial readiness is asserted.
 
-1. **Scalability:** The MLP neural network and tinyML feature engineering successfully scaled across diverse commercial load profiles without memory overflow or numerical instability.
-2. **P95 Reliability:** The probabilistic P95 risk envelope consistently achieved >98% coverage across facilities, proving it provides an effective upper bound to prevent peak capacity surcharge violations.
-3. **Readiness:** The full dataset is present and validated locally for offline research and baseline generation.
+Exact metrics, model protocol, fit times, baselines, excluded-day counts, optimizer iteration limits and missing capacity values are saved in `cohort_metrics.csv`. Reaching the iteration limit is reported rather than treated as converged. MLP may underperform simple baselines; validation-based model selection and monitoring are needed before deployment.
+
+Source: Building Data Genome 2, Miller et al. (2020), https://doi.org/10.1038/s41597-020-00712-x. Source and adapted outputs: CC BY-SA 4.0.
+
+Training reached the 300-iteration limit (ConvergenceWarning): Wolf_retail_Toshia, Fox_food_Francesco. Results use the recorded fit without test-set retuning.
+
+![Cohort baseline comparison and heuristic exceedances](full_dataset_metrics.png)

@@ -11,9 +11,11 @@ from __future__ import annotations
 
 import re
 import uuid
-from datetime import datetime, timezone
+import math
+from datetime import date, datetime, timezone
 from enum import Enum
-from typing import Any
+from typing import Any, Literal
+from zoneinfo import ZoneInfo
 
 from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
 
@@ -53,7 +55,7 @@ def _validate_time_str(v: str) -> str:
 
 class GenericEquipmentAsset(BaseModel):
     """Generic industrial/commercial electrical equipment asset."""
-    model_config = ConfigDict(extra="forbid")
+    model_config = ConfigDict(extra="forbid", allow_inf_nan=False)
 
     @model_validator(mode="before")
     @classmethod
@@ -90,7 +92,9 @@ class GenericEquipmentAsset(BaseModel):
 
     @field_validator("earliest_start", "latest_finish")
     @classmethod
-    def validate_time(cls, v: str) -> str:
+    def validate_time(cls, v: str, info) -> str:
+        if v == "24:00" and info.field_name == "latest_finish":
+            return v
         return _validate_time_str(v)
 
     @field_validator("preferred_start")
@@ -113,7 +117,7 @@ class GenericEquipmentAsset(BaseModel):
 
 class AssetCreateRequest(BaseModel):
     """Payload to add a new equipment asset."""
-    model_config = ConfigDict(extra="forbid")
+    model_config = ConfigDict(extra="forbid", allow_inf_nan=False)
 
     name: str = Field(min_length=1, max_length=100)
     category: str = Field(default="custom", max_length=50)
@@ -128,9 +132,18 @@ class AssetCreateRequest(BaseModel):
     preferred_start: str | None = None
     enabled: bool = True
 
+    @field_validator("active_weekdays")
+    @classmethod
+    def validate_weekdays(cls, v: list[int]) -> list[int]:
+        if not v or any(day < 0 or day > 6 for day in v):
+            raise ValueError("active_weekdays must contain weekdays in 0..6")
+        return sorted(set(v))
+
     @field_validator("earliest_start", "latest_finish")
     @classmethod
-    def validate_time(cls, v: str) -> str:
+    def validate_time(cls, v: str, info) -> str:
+        if v == "24:00" and info.field_name == "latest_finish":
+            return v
         return _validate_time_str(v)
 
     @field_validator("preferred_start")
@@ -143,7 +156,7 @@ class AssetCreateRequest(BaseModel):
 
 class AssetUpdateRequest(BaseModel):
     """Payload to update an existing asset."""
-    model_config = ConfigDict(extra="forbid")
+    model_config = ConfigDict(extra="forbid", allow_inf_nan=False)
 
     name: str | None = Field(default=None, min_length=1, max_length=100)
     category: str | None = Field(default=None, max_length=50)
@@ -160,7 +173,9 @@ class AssetUpdateRequest(BaseModel):
 
     @field_validator("earliest_start", "latest_finish")
     @classmethod
-    def validate_time(cls, v: str | None) -> str | None:
+    def validate_time(cls, v: str | None, info) -> str | None:
+        if v == "24:00" and info.field_name == "latest_finish":
+            return v
         if v is not None:
             return _validate_time_str(v)
         return v
@@ -175,7 +190,7 @@ class AssetUpdateRequest(BaseModel):
 
 class ScheduleSettings(BaseModel):
     """Facility-wide scheduling preferences."""
-    model_config = ConfigDict(extra="forbid")
+    model_config = ConfigDict(extra="forbid", allow_inf_nan=False)
 
     @model_validator(mode="before")
     @classmethod
@@ -195,6 +210,15 @@ class ScheduleSettings(BaseModel):
     forecast_uncertainty_pct: float = Field(default=10.0, ge=0.0, le=100.0, description="Conservative baseline buffer %")
     updated_at: str = Field(default_factory=lambda: datetime.now(timezone.utc).isoformat())
 
+    @field_validator("timezone")
+    @classmethod
+    def validate_timezone(cls, value: str) -> str:
+        try:
+            ZoneInfo(value)
+        except (KeyError, ValueError) as exc:
+            raise ValueError("timezone must be an IANA timezone") from exc
+        return value
+
     @field_validator("time_step_minutes")
     @classmethod
     def validate_resolution(cls, v: int) -> int:
@@ -213,7 +237,7 @@ class ScheduleSettings(BaseModel):
 
 class ScheduleSettingsUpdateRequest(BaseModel):
     """Payload to update scheduling preferences."""
-    model_config = ConfigDict(extra="forbid")
+    model_config = ConfigDict(extra="forbid", allow_inf_nan=False)
 
     time_step_minutes: int | None = None
     max_facility_power_kw: float | None = Field(default=None, gt=0.0)
@@ -313,7 +337,7 @@ class GeneratedSchedule(BaseModel):
 
 class SchedulePreviewRequest(BaseModel):
     """Payload to trigger a schedule preview."""
-    model_config = ConfigDict(extra="forbid")
+    model_config = ConfigDict(extra="forbid", allow_inf_nan=False)
 
     schedule_date: str | None = None  # YYYY-MM-DD, defaults to today
     time_step_minutes: int | None = None
@@ -323,6 +347,21 @@ class SchedulePreviewRequest(BaseModel):
     asset_overrides: list[GenericEquipmentAsset] | None = None
     baseline_load_kw: list[float] | None = None
     tariff_rates_eur_kwh: list[float] | None = None
+    data_mode: Literal["auto", "demo", "telemetry"] = "auto"
+
+    @field_validator("schedule_date")
+    @classmethod
+    def validate_date(cls, value: str | None) -> str | None:
+        if value is not None:
+            return date.fromisoformat(value).isoformat()
+        return value
+
+    @field_validator("baseline_load_kw", "tariff_rates_eur_kwh")
+    @classmethod
+    def validate_profiles(cls, values: list[float] | None) -> list[float] | None:
+        if values is not None and any(not math.isfinite(v) for v in values):
+            raise ValueError("Profiles must contain finite numbers")
+        return values
 
     @field_validator("time_step_minutes")
     @classmethod

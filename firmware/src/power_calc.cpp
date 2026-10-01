@@ -176,6 +176,13 @@ void PowerCalculator::integrateCumulativeEnergy(float current_total_power_kw, ui
     last_update_millis_ = current_millis;
 }
 
+bool PowerCalculator::tryUpdateCtOnly(const ThreePhaseMeasurement& measurements, uint32_t current_millis,
+                                     SystemPowerSnapshot& output) {
+    if (metrology_mode_ != MetrologyMode::MODE_A_CT_ONLY) return false;
+    output = update(measurements, current_millis);
+    return true;
+}
+
 SystemPowerSnapshot PowerCalculator::update(const ThreePhaseMeasurement& measurements, uint32_t current_millis) {
     metrology_mode_ = MetrologyMode::MODE_A_CT_ONLY;
     SystemPowerSnapshot snap;
