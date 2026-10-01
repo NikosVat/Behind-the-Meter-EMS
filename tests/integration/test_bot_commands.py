@@ -119,8 +119,8 @@ class TestFormatGreekBotResponse:
     def test_status_command_zone_peak(
         self, bakery_facility_config: dict[str, Any], sample_telemetry: TelemetryPayload
     ):
-        # Wednesday 15:00 UTC (Summer peak)
-        sample_telemetry.timestamp = datetime(2026, 7, 15, 15, 0, 0, tzinfo=timezone.utc)
+        # Wednesday 12:00 UTC (15:00 EEST Summer peak)
+        sample_telemetry.timestamp = datetime(2026, 7, 15, 12, 0, 0, tzinfo=timezone.utc)
         res = format_greek_bot_response("/status", bakery_facility_config, latest_payload=sample_telemetry)
         assert "Ζώνη Αιχμής" in res
 

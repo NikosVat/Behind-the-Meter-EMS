@@ -299,7 +299,7 @@ class TestProactiveAlertingAndThrottling:
     ):
         # Summer peak window is 14:00 - 17:00 (Mon - Fri)
         # Threshold for bakery is 22.0 kW; send 28.0 kW breach load
-        peak_time = datetime(2026, 7, 15, 15, 0, 0, tzinfo=timezone.utc)  # Wednesday summer peak
+        peak_time = datetime(2026, 7, 15, 12, 0, 0, tzinfo=timezone.utc)  # Wednesday 15:00 EEST summer peak
 
         breach_payload = copy.deepcopy(valid_telemetry_dict)
         breach_payload["total_active_power_kw"] = 28.0
@@ -350,7 +350,7 @@ class TestProactiveAlertingAndThrottling:
         mock_bot: MockTelegramClient,
         valid_telemetry_dict: dict[str, Any],
     ):
-        peak_time = datetime(2026, 7, 15, 15, 0, 0, tzinfo=timezone.utc)
+        peak_time = datetime(2026, 7, 15, 12, 0, 0, tzinfo=timezone.utc)  # Wednesday 15:00 EEST summer peak
 
         breach_payload = copy.deepcopy(valid_telemetry_dict)
         breach_payload["total_active_power_kw"] = 28.0

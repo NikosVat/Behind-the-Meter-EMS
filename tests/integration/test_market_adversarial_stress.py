@@ -203,7 +203,8 @@ class TestExtremePricesAndSanityBounds:
         store.init_db()
         service = MarketPriceService(store=store)
 
-        dt = datetime(2026, 7, 20, 19, 0, tzinfo=timezone.utc)
+        # 19:00 Greek civil time (hour 19 in DAM table) is 16:00 UTC in summer (EEST = UTC+3)
+        dt = datetime(2026, 7, 20, 16, 0, tzinfo=timezone.utc)
         target_date = "2026-07-20"
         spike_prices = [
             DamHourlyPrice(

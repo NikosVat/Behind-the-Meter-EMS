@@ -45,8 +45,8 @@ def e2e_env(tmp_path) -> Generator[tuple[TestClient, MockTelegramClient, SQLiteS
 
 @pytest.fixture
 def summer_peak_time() -> datetime:
-    """Wednesday 15:00 UTC (Active Greek summer peak window: 14:00 - 17:00)."""
-    return datetime(2026, 7, 15, 15, 0, 0, tzinfo=timezone.utc)
+    """Wednesday 12:00 UTC / 15:00 EEST (Active Greek summer peak window: 14:00 - 17:00)."""
+    return datetime(2026, 7, 15, 12, 0, 0, tzinfo=timezone.utc)
 
 
 class TestFullPipelineE2E:

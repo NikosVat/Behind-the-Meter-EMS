@@ -242,11 +242,11 @@ def run_verification() -> int:
         # ----------------------------------------------------------------------
         # Check 2: Normal Baseline Telemetry Ingestion (< threshold)
         # ----------------------------------------------------------------------
-        # Ensure reference weekday during summer peak window (15:00 UTC)
+        # Ensure reference weekday during summer peak window (15:00 EEST = 12:00 UTC)
         now_dt = datetime.now(timezone.utc)
         day_offset = (now_dt.weekday() - 2) if now_dt.weekday() >= 5 else 0
         ref_date = (now_dt - timedelta(days=day_offset)).date()
-        peak_start_time = datetime(ref_date.year, ref_date.month, ref_date.day, 15, 0, 0, tzinfo=timezone.utc)
+        peak_start_time = datetime(ref_date.year, ref_date.month, ref_date.day, 12, 0, 0, tzinfo=timezone.utc)
 
         gen = TelemetryGenerator(
             profile=canonical_profile,
