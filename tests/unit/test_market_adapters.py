@@ -44,7 +44,7 @@ from tariff_engine.adapters.spanish import (
     SPANISH_VAT_RATE,
     SpanishMarketAdapter,
 )
-from tariff_engine.contracts import ContractProfile, TariffContract
+from tariff_engine.contracts import ATHENS_TZ, ContractProfile, TariffContract
 
 
 def utc_dt(*args, **kwargs) -> datetime:
@@ -161,8 +161,8 @@ class TestGreekMarketAdapter:
 
     def test_greek_peak_window_summer_and_weekend(self, adapter: GreekMarketAdapter) -> None:
         """Verifies Summer peak window (Mon-Fri 14:00-17:00) and weekend exemption."""
-        # Summer Wednesday: hours 14, 15, 16 are peak
-        summer_wed = utc_dt(2026, 7, 15, 0, 0)
+        # Summer Wednesday in Athens local civil time: hours 14, 15, 16 are peak
+        summer_wed = datetime(2026, 7, 15, 0, 0, tzinfo=ATHENS_TZ)
         vectors_wed = adapter.get_hourly_price_vector(summer_wed, horizon_hours=24)
         for h, v in enumerate(vectors_wed):
             if 14 <= h < 17:
@@ -171,13 +171,13 @@ class TestGreekMarketAdapter:
                 assert v.is_peak_window is False
 
         # Summer Saturday: all hours exempt from peak
-        summer_sat = utc_dt(2026, 7, 18, 0, 0)
+        summer_sat = datetime(2026, 7, 18, 0, 0, tzinfo=ATHENS_TZ)
         vectors_sat = adapter.get_hourly_price_vector(summer_sat, horizon_hours=24)
         assert all(v.is_peak_window is False for v in vectors_sat)
 
     def test_greek_peak_window_winter(self, adapter: GreekMarketAdapter) -> None:
         """Verifies Winter peak window (Mon-Fri 17:00-21:00)."""
-        winter_tue = utc_dt(2026, 1, 13, 0, 0)
+        winter_tue = datetime(2026, 1, 13, 0, 0, tzinfo=ATHENS_TZ)
         vectors = adapter.get_hourly_price_vector(winter_tue, horizon_hours=24)
         for h, v in enumerate(vectors):
             if 17 <= h < 21:

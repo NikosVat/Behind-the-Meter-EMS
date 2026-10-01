@@ -64,13 +64,13 @@ def calculate_green_tariff_fluctuation(
         Fluctuation Mechanism adjustment MD in €/kWh (can be positive, zero, or negative).
     """
     tea_kwh = to_kwh_rate(tea_eur_mwh, unit)
-    ll_kwh = to_kwh_rate(ll_eur_mwh, "EUR_MWH")
-    lu_kwh = to_kwh_rate(lu_eur_mwh, "EUR_MWH")
+    ll_kwh = to_kwh_rate(ll_eur_mwh, unit)
+    lu_kwh = to_kwh_rate(lu_eur_mwh, unit)
 
     # Compute beta if tea_m2 is provided and beta was not explicitly set
     effective_beta = beta
     if tea_m2_eur_mwh is not None and beta == 0.0:
-        tea_m2_kwh = to_kwh_rate(tea_m2_eur_mwh, "EUR_MWH")
+        tea_m2_kwh = to_kwh_rate(tea_m2_eur_mwh, unit)
         effective_beta = alpha * (tea_kwh - tea_m2_kwh)
 
     if tea_kwh > lu_kwh:

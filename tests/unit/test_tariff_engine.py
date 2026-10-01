@@ -11,12 +11,18 @@ Comprehensive verification covering:
 """
 
 from datetime import datetime, timezone
+from zoneinfo import ZoneInfo
 
 import pytest
 
+ATHENS_TZ = ZoneInfo("Europe/Athens")
 
-def utc_dt(*args, **kwargs) -> datetime:
-    return datetime(*args, **kwargs, tzinfo=timezone.utc)
+def athens_dt(*args, **kwargs) -> datetime:
+    """Helper representing Greek market local timestamps."""
+    return datetime(*args, **kwargs, tzinfo=ATHENS_TZ)
+
+# Legacy alias for test backwards compatibility
+utc_dt = athens_dt
 
 
 from tariff_engine import (
@@ -601,10 +607,10 @@ class TestCostCalculator:
 
     def test_normalizing_to_kwh_edge_cases(self):
         # Inputs <= 1.0 passed directly in €/kWh
-        md = calculate_green_tariff_fluctuation(tea_eur_mwh=0.105, ll_eur_mwh=0.095, lu_eur_mwh=0.115)
+        md = calculate_green_tariff_fluctuation(tea_eur_mwh=0.105, ll_eur_mwh=0.095, lu_eur_mwh=0.115, unit="EUR_KWH")
         assert md == 0.0
 
-        rate_yellow = calculate_yellow_dynamic_supply_rate(tea_eur_mwh=0.120, p_base=0.040)
+        rate_yellow = calculate_yellow_dynamic_supply_rate(tea_eur_mwh=0.120, p_base=0.040, unit="EUR_KWH")
         assert rate_yellow == 0.1912
 
         # YellowDynamicEngine dynamic computation
