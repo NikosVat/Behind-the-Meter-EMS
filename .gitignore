@@ -49,3 +49,5 @@ firmware/src/secrets.h
 
 # Internal agent working directory
 .agents/
+
+.superpowers/
