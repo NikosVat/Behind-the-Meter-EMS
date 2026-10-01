@@ -10,6 +10,16 @@ from __future__ import annotations
 from dataclasses import dataclass
 from datetime import datetime
 from enum import Enum
+from zoneinfo import ZoneInfo
+
+ATHENS_TZ = ZoneInfo("Europe/Athens")
+
+
+def to_athens_time(dt: datetime) -> datetime:
+    """Normalize datetime to Greek civil time (Europe/Athens)."""
+    if dt.tzinfo is not None:
+        return dt.astimezone(ATHENS_TZ)
+    return dt.replace(tzinfo=ATHENS_TZ)
 
 
 class TariffContract(str, Enum):
@@ -115,7 +125,8 @@ def get_greek_season(dt: datetime) -> Season:
     - Summer: May 1 to October 31 (months 5 to 10 inclusive).
     - Winter: November 1 to April 30 (months 11 to 4 inclusive).
     """
-    month = dt.month
+    local_dt = to_athens_time(dt)
+    month = local_dt.month
     if 5 <= month <= 10:
         return Season.SUMMER
     return Season.WINTER
@@ -132,15 +143,17 @@ def is_peak_window(dt: datetime, season: str | Season = "auto") -> bool:
     - Winter Season (Nov 1 - Apr 30):
         Peak: 17:00 to 21:00 (17:00:00 to 20:59:59) Mon - Fri.
     """
+    local_dt = to_athens_time(dt)
+
     # Weekend exemption
-    if dt.weekday() >= 5:
+    if local_dt.weekday() >= 5:
         return False
 
     if isinstance(season, Season):
         active_season = season
     elif isinstance(season, str):
         if season.lower() == "auto":
-            active_season = get_greek_season(dt)
+            active_season = get_greek_season(local_dt)
         elif season.lower() == "summer":
             active_season = Season.SUMMER
         elif season.lower() == "winter":
@@ -150,9 +163,7 @@ def is_peak_window(dt: datetime, season: str | Season = "auto") -> bool:
     else:
         raise TypeError(f"Unknown season type: {type(season)}")
 
-
-
-    hour = dt.hour
+    hour = local_dt.hour
 
     if active_season == Season.SUMMER:
         # 14:00:00 to 16:59:59 is peak
@@ -168,7 +179,8 @@ def is_offpeak_window(dt: datetime, season: str | Season = "auto") -> bool:
 
     Commercial night off-peak window: 23:00 to 07:00 (23:00:00 to 06:59:59).
     """
-    hour = dt.hour
+    local_dt = to_athens_time(dt)
+    hour = local_dt.hour
     return hour >= 23 or hour < 7
 
 
@@ -180,15 +192,17 @@ def get_remaining_peak_hours(dt: datetime, season: str | Season = "auto") -> flo
     if not is_peak_window(dt, season=season):
         return 0.0
 
+    local_dt = to_athens_time(dt)
     if isinstance(season, str) and season.lower() != "auto":
         is_summer = (season.lower() == "summer")
     else:
-        is_summer = (get_greek_season(dt) == Season.SUMMER)
+        is_summer = (get_greek_season(local_dt) == Season.SUMMER)
 
     end_hour = 17.0 if is_summer else 21.0
-    current_time_hours = dt.hour + (dt.minute / 60.0) + (dt.second / 3600.0)
+    current_time_hours = local_dt.hour + (local_dt.minute / 60.0) + (local_dt.second / 3600.0)
     remaining = end_hour - current_time_hours
     return max(0.0, remaining)
+
 
 
 # Compatibility aliases matching test harness naming

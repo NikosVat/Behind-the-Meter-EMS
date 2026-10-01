@@ -28,6 +28,7 @@ from backend.market.models import (
     MarketStatus,
 )
 from backend.market.scraper_rae import verify_green_tariff_formula
+from tariff_engine.contracts import to_athens_time
 
 logger = logging.getLogger(__name__)
 
@@ -240,11 +241,12 @@ class MarketPriceService:
         color = tariff_color.strip().lower()
         norm_contract = contract_type.strip().upper().replace("Γ", "G")
         norm_supplier = supplier_id.strip().lower()
+        local_dt = to_athens_time(timestamp)
 
         # Dynamic / Yellow Tariffs: indexed to hourly DAM clearing rate
         if color in ("yellow", "dynamic"):
-            date_str = timestamp.strftime("%Y-%m-%d")
-            hour = timestamp.hour
+            date_str = local_dt.strftime("%Y-%m-%d")
+            hour = local_dt.hour
 
             # L1 Check
             with self._lock:
@@ -275,7 +277,7 @@ class MarketPriceService:
             return 120.0
 
         # Green Tariffs: indexed to monthly TEA_{M-1}
-        month_str = timestamp.strftime("%Y-%m")
+        month_str = local_dt.strftime("%Y-%m")
 
         # L1 Check
         with self._lock:
