@@ -129,6 +129,7 @@ class TestGenericScheduleEngine:
             facility_id="restaurant-1",
             assets=[asset],
             settings=settings,
+            schedule_date=date(2026, 9, 23),
             tariff_rates=default_tariffs_96,
         )
         assert result.status == "optimal"
@@ -167,6 +168,7 @@ class TestGenericScheduleEngine:
             facility_id="hotel-1",
             assets=[asset],
             settings=settings,
+            schedule_date=date(2026, 9, 23),
             baseline_load=baseline,
             tariff_rates=default_tariffs_96,
         )
@@ -206,6 +208,7 @@ class TestGenericScheduleEngine:
             facility_id="supermarket-1",
             assets=[asset],
             settings=settings,
+            schedule_date=date(2026, 9, 23),
             tariff_rates=tariffs,
         )
         assert result.status == "optimal"
@@ -255,6 +258,7 @@ class TestGenericScheduleEngine:
             facility_id="bakery-2",
             assets=[must_run_asset, optional_asset],
             settings=settings,
+            schedule_date=date(2026, 9, 23),
         )
         assert result.status == "optimal"
         scheduled_dict = {it.asset_id: it for it in result.scheduled_items}
@@ -296,6 +300,7 @@ class TestGenericScheduleEngine:
             facility_id="print-1",
             assets=[asset],
             settings=settings,
+            schedule_date=date(2026, 9, 23),
             baseline_load=baseline,
         )
         assert result.status == "optimal"
@@ -347,6 +352,7 @@ class TestGenericScheduleEngine:
             facility_id="cold-1",
             assets=[asset],
             settings=cost_settings,
+            schedule_date=date(2026, 9, 23),
             baseline_load=baseline,
             tariff_rates=tariffs,
         )
@@ -364,6 +370,7 @@ class TestGenericScheduleEngine:
             facility_id="cold-1",
             assets=[asset],
             settings=peak_settings,
+            schedule_date=date(2026, 9, 23),
             baseline_load=baseline,
             tariff_rates=tariffs,
         )
@@ -390,6 +397,7 @@ class TestGenericScheduleEngine:
             facility_id="bakery-3",
             assets=[asset],
             settings=settings,
+            schedule_date=date(2026, 9, 23),
         )
         assert result.status == "optimal"
         explanation = result.scheduled_items[0].explanation_el
@@ -418,6 +426,7 @@ class TestGenericScheduleEngine:
             facility_id="foundry-1",
             assets=[asset],
             settings=settings,
+            schedule_date=date(2026, 9, 23),
         )
         assert result.status == "infeasible"
         assert len(result.warnings) > 0

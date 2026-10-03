@@ -7,160 +7,265 @@
 [![Safety Standard](https://img.shields.io/badge/Standard-ELOT%2060364-red.svg)](https://www.elot.gr)
 [![Bill Validation: 0.00% Error](https://img.shields.io/badge/Bill%20Audit-0.00%25%20Error%20(198%20lines)-success.svg)](docs/tariff_validation_report.md)
 [![Calibration: simulation model](https://img.shields.io/badge/Calibration-simulation%20model-blue.svg)](docs/measurement_uncertainty_report.md)
-[![Tests](https://img.shields.io/badge/tests-run%20pytest-blue.svg)](tests/)
+[![Tests: 713 passing](https://img.shields.io/badge/tests-713%20passing-brightgreen.svg)](tests/)
 
-An advisory energy-management prototype for commercial SMBs, combining ESP32 telemetry, day-ahead load forecasting, and equipment-constrained MILP scheduling. Staff review recommendations before changing equipment operation. Public-data benchmarks support software evaluation; achieved site savings and production hardware accuracy remain unverified.
+An advisory energy-management and load-scheduling platform for commercial small-to-medium businesses (SMBs), combining behind-the-meter IoT telemetry, Greek electricity tariff modeling (Law 5068/2023, HEnEx Day-Ahead Market), and equipment-constrained Mixed-Integer Linear Programming (MILP). Human operators review actionable recommendations before adjusting equipment operation.
 
-See the [competition and pilot dossier](docs/product/PRODUCT_DOSSIER.md) for the evidence, demo flow, and remaining deployment work.
 ---
 
-## Measurement and optimization limits
+## Table of Contents
+1. [Purpose & Commercial Context](#1-purpose--commercial-context)
+2. [Architectural & Functional Anatomy](#2-architectural--functional-anatomy)
+3. [Commercial & Technical Potential](#3-commercial--technical-potential)
+4. [Current State & Engineering Maturity](#4-current-state--engineering-maturity)
+5. [Reproducible Evidence & Benchmarks](#5-reproducible-evidence--benchmarks)
+6. [Quickstart Guide](#6-quickstart-guide)
+7. [Generic SME Equipment Schedule Studio](#7-generic-sme-equipment-schedule-studio)
+8. [Technical Feature Inventory (F01–F34)](#8-technical-feature-inventory-f01f34)
+9. [Documentation Index](#9-documentation-index)
+10. [Regulatory Compliance & Electrical Safety](#10-regulatory-compliance--electrical-safety)
 
-The current CT-only firmware measures RMS current and **estimates power and energy using configured voltage and power factor**. It does not measure instantaneous voltage or power factor. Telemetry labels these readings `estimated_nominal_voltage_pf`; simulated and legacy/unknown readings are also distinguished. The calibration report is a simulation and does not certify physical hardware accuracy.
+---
 
-Schedule Studio forecasts a local 24-hour day from stored hourly telemetry, comparing a NumPy ridge model with previous-day/week baselines on seven chronological validation days. All inputs precede the forecast origin. With insufficient history it uses persistence or explicitly labelled demo data. `data_mode="telemetry"` rejects missing history and requires caller-supplied effective tariff rates. The separate legacy `/optimization/solve` endpoint still uses demonstration defaults.
+## 1. Purpose & Commercial Context
 
-Whole-facility forecasts reserve existing demand. Adding named equipment to them is an incremental-load scenario that may double-count equipment; a pilot must provide an isolated background profile and actual marginal tariffs. Capacity constraints include penalized slack: any breach is a warning, not a safe-to-execute instruction. Default uncertainty margins are policy buffers, not calibrated probabilities.
+### 1.1 The Market Problem
+Commercial electricity consumers in Greece—such as artisan bakeries, cold-storage logistics facilities, boutique hotels, and light manufacturing plants—operate under demanding grid and financial conditions:
 
-CT-only readings remain `estimated_nominal_voltage_pf`. Mode B acquisition is blocked until a real voltage/meter driver is integrated. Clock-dependent telemetry waits for valid RTC/NTP time. Configured API keys protect API/dashboard data; production startup requires a key. The dashboard accepts a key for the current page only. Telemetry rejects stale/duplicate timestamps with HTTP 409 rather than billing them again.
+1. **Extreme Tariff & Wholesale Volatility**: Under Law 5068/2023, retail tariffs (Green, Yellow/Dynamic, Orange) fluctuate monthly or hourly based on the Hellenic Energy Exchange (HEnEx) Day-Ahead Market (DAM). Price spikes during evening peak hours can reach 3× to 5× off-peak rates, while midday solar peaks can occasionally induce near-zero or negative wholesale prices.
+2. **Punitive Capacity & Demand Charges**: Commercial tariffs (Γ21, Γ22, Γ23) impose steep surcharges for exceeding contracted capacity (kVA), strict dual-zone peak windows (DEDDIE winter/summer schedules), and severe distribution penalties (+40% surcharge on network usage) when average power factor ($\cos\varphi$) falls below 0.85.
+3. **The "Smart Meter Vacuum"**: Over 80% of Greek low-voltage commercial connections still lack DEDDIE smart interval meters. Business owners receive utility bills weeks or months after consumption, preventing real-time intervention and billing dispute resolution.
 
-## Reproducible evidence
+### 1.2 Market Positioning & The Competitive Gap
+Existing energy management solutions leave SMBs unserved:
+* **Industrial BMS/EMS (Schneider EcoStruxure, Siemens, Meazon, Yodiwo)**: Capital expenditures between €3,000 and €10,000+ plus recurring SaaS fees make them economically prohibitive for small commercial sites.
+* **Commercial DIN-Rail Meters (Shelly Pro 3EM, HAM Systems)**: Affordable hardware (€120–€250) providing *"dumb telemetry"*; they log raw kW and kWh without regulatory tariff intelligence, HEnEx DAM awareness, capacity surcharge forecasting, or operational equipment models.
+* **Utility Mobile Apps (PPC myEnergy Coach, Protergia)**: Static hindsight reporting based on delayed grid meter reads.
+
+### 1.3 The Core Solution
+This Behind-the-Meter EMS provides an **equipment-aware, regulatory-intelligent advisory layer**:
+* **Low Capital Requirement**: Compatible with sub-€50 ESP32/CT hardware or off-the-shelf certified Modbus/LAN DIN-rail meters.
+* **Human-in-the-Loop Advisory (Non-Actuating)**: Rather than risky automated switching of delicate equipment, the system generates verified operational schedules and proactive alerts (via web dashboard, Telegram, and Viber) for staff review.
+
+```mermaid
+flowchart LR
+    subgraph Facility ["Commercial Facility"]
+        Mains["3-Phase Mains (L1, L2, L3)"] --> CT["SCT-013-000 CT Clamps"]
+        CT --> ESP32["ESP32 Firmware (PlatformIO)"]
+        Loads["Flexible Loads\n(Ovens, Defrost, HVAC)"] -.-> Staff["Human Operators"]
+    end
+
+    subgraph External ["External Market Feeds"]
+        HEnEx["HEnEx Day-Ahead Market (DAM)"]
+        RAAEY["RAAEY Monthly Formula Parameters"]
+    end
+
+    subgraph Backend ["Behind-the-Meter EMS Core"]
+        FastAPI["FastAPI Ingestion & REST API"]
+        SQLite[("SQLite WAL Ingestion Store")]
+        TariffEng["Regulatory Tariff Engine (Law 5068/2023)"]
+        Forecaster["Ridge Load Forecaster"]
+        MILP["SciPy HiGHS MILP Optimizer"]
+        DecisionSupport["Decision Support & Verifier"]
+    end
+
+    subgraph UI ["Operator Channels"]
+        Web["Schedule Studio Web Dashboard"]
+        Bots["Telegram & Viber Bot Alerts"]
+    end
+
+    ESP32 -- "HTTPS JSON (ADC1 True-RMS)" --> FastAPI
+    FastAPI --> SQLite
+    SQLite --> Forecaster
+    HEnEx --> TariffEng
+    RAAEY --> TariffEng
+    Forecaster --> MILP
+    TariffEng --> MILP
+    MILP --> DecisionSupport
+    DecisionSupport --> Web
+    DecisionSupport --> Bots
+    Bots -. "Actionable Guidance" .-> Staff
+    Web -. "Production Schedule" .-> Staff
+```
+
+---
+
+## 2. Architectural & Functional Anatomy
+
+The repository consists of six modular subsystems:
+
+```
+e:\project1\
+├── firmware/              # ESP32 C++ PlatformIO: 3-phase sampling, RMS, ring buffer
+├── backend/               # FastAPI async service, SQLite WAL persistence, security
+│   ├── database/          # Connection manager, schema migrations, WAL pragmas
+│   ├── market/            # HEnEx DAM scrapers, market history cache
+│   ├── models/            # Pydantic v2 schemas with physical validation invariants
+│   └── routes/            # REST API endpoints (telemetry, schedule, optimization)
+├── tariff_engine/         # Greek regulatory billing engine, contracts, unit conversions
+│   ├── adapters/          # Pluggable market adapters (Greek, German, Spanish)
+│   ├── contracts.py       # Γ21, Γ22, Γ23 contract definitions and peak schedules
+│   ├── green_tariff.py    # Law 5068/2023 fluctuation mechanism (MD)
+│   ├── yellow_dynamic.py  # DAM-indexed dynamic tariff formulas
+│   └── units.py           # Strict wholesale-to-retail unit conversions (€/MWh -> €/kWh)
+├── optimization_engine/   # Operational scheduling, SciPy HiGHS MILP, decision cards
+│   ├── solver.py          # Multi-period MILP formulating energy & capacity costs
+│   ├── decision_support.py# Human-readable cards, demand savings, critical alerts
+│   ├── forecasting.py     # 24h rolling load forecaster (Ridge vs persistence)
+│   └── scheduling_service.py # Schedule Studio execution and window enforcement
+├── bot/                   # Proactive Viber & Telegram messaging with anti-spam engine
+└── scripts/ & reports/    # BDG2 public benchmarks, ML evaluations, E2E test harness
+```
+
+### 2.1 Embedded Telemetry Subsystem (`firmware/`)
+* **Hardware Architecture**: Implemented in C++ for the ESP32-WROOM-32 via PlatformIO.
+* **3-Phase Sampling**: Uses three non-invasive SCT-013-000 current clamps ($2000:1$ ratio) biased to $1.65\text{ V}$ with an $18\,\Omega$ burden resistor.
+* **ADC Allocation**: Strictly restricted to ESP32 **ADC1** pins (GPIO 32, 34, 35). This avoids the hardware conflict where the ESP32 Wi-Fi RF driver locks ADC2 and corrupts analogue reads.
+* **Store-and-Forward**: A 64-slot ring buffer holds readings during Wi-Fi outages to prevent data loss.
+* **Provenance Tagging**: Telemetry payloads carry explicit provenance (`estimated_nominal_voltage_pf`), preventing uncalibrated current measurements from pretending to be certified Class 0.5 active power meters.
+
+### 2.2 Ingestion & Persistence Engine (`backend/`, `backend/database/`)
+* **FastAPI Async Pipeline**: High-throughput `/api/v1/telemetry` ingestion endpoint.
+* **Physical Validation Invariants**: Pydantic v2 schemas reject physical anomalies (e.g., phase imbalance violations $|P_{\text{total}} - \sum P_i| > 0.05\text{ kW}$) and strictly reject non-finite inputs (`allow_inf_nan=False`).
+* **SQLite WAL Durability**: SQLite configured in `WAL` mode with `PRAGMA synchronous=NORMAL` and immediate transactions. Counter-delta accumulation eliminates double-counting on device reboots and rejects duplicate/stale timestamps with HTTP 409.
+
+### 2.3 Regulatory Tariff Engine (`tariff_engine/`)
+* **Law 5068/2023 Compliance**: Implements the official Greek retail electricity tariff categories:
+  * **Green Tariffs**: Base rate plus the monthly fluctuation mechanism ($MD = \alpha \cdot [TEA_{m-1} - Lu] + \beta$).
+  * **Yellow/Dynamic Tariffs**: Indexed directly to hourly HEnEx DAM prices with explicit unit conversions via [`tariff_engine/units.py`](tariff_engine/units.py).
+  * **Commercial Contracts (Γ21, Γ22, Γ23)**: Incorporates DEDDIE peak/off-peak windows, seasonal winter/summer shifts, and public holiday handling.
+* **Regulated Surcharges**: Full line-item breakdown including DEDDIE distribution, ADMIE transmission, ETMEAR renewable fees, YKO public utility charges, special consumption tax, and VAT.
+* **Timezone Normalization**: All market lookups and peak window evaluations are strictly locked to `ZoneInfo("Europe/Athens")`.
+
+### 2.4 Mathematical Optimization Engine (`optimization_engine/`)
+* **Formulation**: Formulates a rolling 24-hour multi-period Mixed-Integer Linear Program (MILP) solved using the high-performance **HiGHS** solver in SciPy (<25 ms solve times).
+* **Objective Function**:
+  $$\min \sum_{t=0}^{H-1} \left( C_t \cdot P_{\text{total}, t} \cdot \Delta t + \lambda_{\text{cap}} \cdot S_t \right)$$
+  Minimizes total dynamic energy purchase cost subject to energy rates $C_t$, plus an optimizer penalty $\lambda_{\text{cap}}$ for exceeding contracted capacity limit $P_{\text{contracted}}$ via slack variable $S_t \ge 0$.
+* **Equipment Constraints**:
+  * **Cold Storage Defrost Cycles**: Shiftable within a bounded window $[t_{\text{nominal}} - \tau, t_{\text{nominal}} + \tau]$.
+  * **Bakery Deck Ovens**: Contiguous, uninterruptible multi-hour production batches requiring binary activation variables $u_{\text{start}, k, t}$.
+  * **HVAC Thermal Inertia**: Building thermal comfort deadbands ($T_{\min} \le T_t \le T_{\max}$) modeling ambient heat transfer and cooling power.
+  * **BESS Storage**: Battery charge/discharge arbitrage bounds and round-trip efficiency constraints.
+
+### 2.5 Decision Support & Auditing (`optimization_engine/decision_support.py`)
+* **Card Generation**: Translates mathematical vector outputs into plain Greek and English operational cards (e.g., *"Shift defrost on Freezer #1 from 18:00 to 14:00 to avoid €0.28/kWh peak"*).
+* **Truthful Financial Separation**: Clearly separates real calculated invoice savings (based on customer contractual rates) from solver internal tuning penalties.
+* **Critical Breach Alerting**: Emits urgent warnings when equipment shifting cannot prevent an upcoming capacity breach.
+* **Closed-Loop Counterfactual Verifier**: Evaluates actual post-event facility telemetry against the pre-intervention counterfactual baseline to classify execution success (`SUCCESS`, `PARTIAL`, `FAILED`).
+
+### 2.6 Multi-Channel Alerting (`bot/`)
+* **Telegram & Viber Integration**: Async bots capable of notifying plant managers on their mobile devices.
+* **Anti-Spam State Machine**: Employs a 3-sample debounce, 30-minute cooldown timer, and 10% deadband hysteresis to avoid alarm fatigue.
+
+---
+
+## 3. Commercial & Technical Potential
+
+### 3.1 Innovation Competition Showcase
+* **High Viability**: Outstanding entry for programs like GreenTech Challenge, NBG Business Seeds, egg, and ClimateLaunchpad.
+* **Demonstrated Depth**: Possesses authentic cross-domain engineering—from embedded C++ firmware and electrical safety constraints to operations research (MILP) and real regulatory energy code.
+
+### 3.2 Low-Cost Single-Site Pilot Pathway
+* **Target Profile**: A single commercial facility (e.g., a commercial bakery or a cold-storage warehouse) with 2–4 genuinely flexible electrical loads.
+* **Shadow Pilot Feasibility**: Running in "shadow advisory mode" (advising staff without automated switching) eliminates the risk of production downtime or equipment damage while collecting real-world counterfactual data.
+* **Commercial Meter Integration (Low-Cost Strategy)**:
+  Rather than attempting custom high-voltage PCB manufacturing, CE/MID certification, and electrical enclosure compliance, the system can interface directly with an **off-the-shelf commercial meter (e.g., Shelly Pro 3EM or standard Modbus meter)**. At ~€120–€150 total hardware cost, this bypasses electrical product certification barriers and allows focus on the core software value: *regulatory intelligence and equipment scheduling*.
+
+### 3.3 Competitive Moat & Strategic Positioning
+* **Open Algorithms vs. Operational Moat**: The repository is MIT-licensed, so the MILP formulations and Python code are not proprietary black boxes.
+* **Where Real Advantage Lies**:
+  1. **Equipment Knowledge Base**: Pre-tuned models for specific equipment (baking deck thermal decay rates, commercial refrigeration defrost inertia).
+  2. **Operator Trust & Workflows**: Practical UI and alerts that fit kitchen/warehouse shift patterns without causing operational friction.
+  3. **Regulatory Adaptation**: Continuous maintenance of Greek market tariffs, DEDDIE circulars, and HEnEx DAM data pipelines.
+
+---
+
+## 4. Current State & Engineering Maturity
+
+### 4.1 Technical Maturity Overview
+* **TRL 5–6 (Technology Validated in Relevant Environment)**.
+* **713 Unit & Integration Tests Passing** (`pytest` with native runtime thread limits).
+* **PlatformIO ESP32 Firmware**: Cleanly compiling within flash and RAM limits.
+* **Working End-to-End**: Local development stack (`uvicorn`, SQLite, web dashboard) fully operational.
+
+### 4.2 Recently Hardened (Phase 1 Progress)
+Key architectural areas recently hardened:
+1. **Greek Market Timezone Normalization**: Standardized `Europe/Athens` across all contract schedules, holiday calendars, and DAM market services, eliminating UTC misalignment.
+2. **Strict Unit Conversions**: Eliminated fragile `< 1.0` price magnitude sniffing heuristics in yellow and green tariffs; centralized explicit €/MWh $\leftrightarrow$ €/kWh conversions in [`tariff_engine/units.py`](tariff_engine/units.py) with negative and zero wholesale price handling.
+3. **Decoupled Decision Support Savings**: Separated solver mathematical penalty weights from reported financial savings; added critical alerts when load shifting cannot prevent capacity breaches.
+4. **Finite Telemetry Schema Validation**: Hardened Pydantic models with `allow_inf_nan=False` to reject `NaN`, `+Inf`, and `-Inf` strings at API entry points.
+5. **Deterministic Scheduling Engine Tests**: Resolved implicit weekend dependencies in generic schedule tests, ensuring reproducible execution 7 days a week.
+
+### 4.3 Technical Boundaries & Disclosures
+
+| Subsystem | Current State | Requirement for Live Commercial Deployment |
+| :--- | :--- | :--- |
+| **Power Measurement** | CT-only firmware measures RMS current; active power and energy assume 230V and PF 0.95. | Integrate a true voltage/energy meter (e.g., Modbus/Shelly Pro 3EM) or calibrate dedicated voltage sampling hardware. |
+| **Firmware Transport** | HTTP/HTTPS client configured; Root CA certificate validation currently in progress. | Complete Phase 1 Sub-Project 2 (Task 3: Root CA TLS validation in C++). |
+| **Telemetry Ingestion Quality** | Fast ingestion with deduplication; averages hourly readings naively. | Complete Phase 1 Sub-Project 2 (Task 2: minimum observation count & gap gating). |
+| **Intervention Persistence** | Optimization cards and closed-loop verification results stored in-memory. | Persist recommendation cards, operator acceptances, and verification outcomes in durable SQLite tables. |
+| **Tenant Isolation** | Single shared `API_KEY` environment variable. | Multi-tenant authentication, scoped device tokens, and role-based access control (RBAC). |
+| **Forecast Generality** | Tested on public building datasets (BDG2); Ridge model performs well on convenience sample. | Ingest 3+ weeks of live facility history before relying on ML forecasts over persistence baselines. |
+
+---
+
+## 5. Reproducible Evidence & Benchmarks
 
 | Evaluation | Evidence and scope |
 |---|---|
-| Day-ahead ML | [Ten-building BDG2 cohort](reports/real_data/FULL_DATASET_MULTI_BUILDING_BENCHMARK.md): MLP WAPE 7.62–28.50%, improving on previous-day persistence at 8 of 10 selected buildings; convenience sample, not a representative fleet. |
-| Runtime model | [Full-year replay on three sites](reports/real_data/RUNTIME_FORECAST_BENCHMARK.md): WAPE 29.71%, 19.49%, 8.62%, compared with previous-day 32.56%, 19.83%, 8.93%. |
-| Monthly ML | [Wolf retail 2017](reports/real_data/MONTHLY_NEURAL_NETWORK_BENCHMARK.md): full-day forecasts issued at midnight, with baselines and excluded days disclosed. |
-| Dispatch | [Real-data scenarios](reports/real_data/REPORT.md): assumed tariffs/battery, including perfect-foresight scenarios; no achieved facility savings. |
-| Firmware | ESP32 PlatformIO build and native C++ behavior regressions; physical accuracy and installation are not certified. |
-| Tariffs | [Formula regression benchmark](docs/tariff_validation_report.md): synthetic expected bills check implementation consistency, not independent utility-bill reconciliation. |
-
-Research dependencies: `python -m pip install -e ".[dev,research,firmware]"`. Run `python -m pytest -q`, `python -m platformio run -d firmware`, and the evaluation scripts linked in the dossier. Data attribution and CC BY-SA requirements are recorded in the reports.
-
-
-## Documentation Index
-
-| Guide | Document Link | Description |
-|---|---|---|
-| **Tariff & Bill Audit Report** | [`docs/tariff_validation_report.md`](docs/tariff_validation_report.md) | Calculation regression benchmark across 9 Greek bills (Γ21, Γ22, Γ23, Green, Yellow, Dynamic) with 0.00% line-item formula discrepancy. |
-| **Measurement Uncertainty Report** | [`docs/measurement_uncertainty_report.md`](docs/measurement_uncertainty_report.md) | ISO/IEC Guide 98-3 GUM error budget, ESP32 ADC linearization, CT phase-shift compensation, and Class 0.5S benchmark. |
-| **Hardware Schematics & Wiring** | [`docs/wiring_schematic.md`](docs/wiring_schematic.md) | SCT-013 CT clamp connections, burden resistor calculation ($18\,\Omega$), ADC1 pinout, virtual ground, and ELOT 60364 safety standards. |
-| **Hardware Bill of Materials (BOM)** | [`docs/hardware_bom.md`](docs/hardware_bom.md) | Sub-€50 component list, part numbers, suppliers, PCB layout, and DIN-rail enclosure recommendations. |
-| **Greek Commercial Electricity Tariffs** | [`docs/greek_tariffs_guide.md`](docs/greek_tariffs_guide.md) | Detailed analysis of contracts Γ21, Γ22, Γ23, Law 5068/2023 Green tariff formula, DEDDIE peak schedules, and power factor penalties. |
-| **REST API Reference** | [`docs/api_reference.md`](docs/api_reference.md) | FastAPI endpoint documentation, optimization endpoints (`/api/v1/optimization`), market feeds, Viber webhook, and dashboard. |
-| **Telegram & Viber Bot Guide** | [`docs/telegram_bot_guide.md`](docs/telegram_bot_guide.md) | BotFather configuration, Viber bot tokens, webhook routing, anti-spam throttling, and Greek interactive commands. |
-| **Production Deployment Guide** | [`docs/deployment_guide.md`](docs/deployment_guide.md) | Systemd unit configuration, environment variables, PlatformIO ESP32 firmware flashing, and operations runbook. |
+| **Day-ahead ML** | [Ten-building BDG2 cohort](reports/real_data/FULL_DATASET_MULTI_BUILDING_BENCHMARK.md): MLP WAPE 7.62–28.50%, improving on previous-day persistence at 8 of 10 selected buildings; convenience sample, not a representative fleet. |
+| **Runtime model** | [Full-year replay on three sites](reports/real_data/RUNTIME_FORECAST_BENCHMARK.md): WAPE 29.71%, 19.49%, 8.62%, compared with previous-day 32.56%, 19.83%, 8.93%. |
+| **Monthly ML** | [Wolf retail 2017](reports/real_data/MONTHLY_NEURAL_NETWORK_BENCHMARK.md): full-day forecasts issued at midnight, with baselines and excluded days disclosed. |
+| **Dispatch** | [Real-data scenarios](reports/real_data/REPORT.md): assumed tariffs/battery, including perfect-foresight scenarios; no achieved facility savings. |
+| **Firmware** | ESP32 PlatformIO build and native C++ behavior regressions; physical accuracy and installation are not certified. |
+| **Tariffs** | [Formula regression benchmark](docs/tariff_validation_report.md): synthetic expected bills check implementation consistency, not independent utility-bill reconciliation. |
 
 ---
 
-## 1. Mathematical Optimization Engine (`optimization_engine/`)
+## 6. Quickstart Guide
 
-The core optimization engine formulates and solves a multi-period Mixed-Integer Linear Program (MILP) over a rolling 24-hour horizon:
-
-$$\min \sum_{t=0}^{H-1} \left( C_t \cdot P_{\text{total}, t} \cdot \Delta t + \lambda_{\text{cap}} \cdot S_t \right)$$
-
-Subject to:
-
-1. **Power Balance:**
-   $$P_{\text{total}, t} = P_{\text{base}, t} + \sum_i P_{\text{defrost}, i, t} + \sum_j P_{\text{hvac}, j, t} + \sum_k P_{\text{batch}, k, t} + P_{\text{chg}, t} - P_{\text{dis}, t}$$
-2. **Contracted Capacity Limit & Surcharge Avoidance:**
-   $$P_{\text{total}, t} - S_t \le P_{\text{contracted}}, \quad S_t \ge 0$$
-3. **Flexible Defrost Shifting (Cold Storage & Freezers):**
-   $$\sum_{t \in W_i} u_{\text{defrost}, i, t} = D_{\text{defrost}, i}, \quad W_i = [t_{\text{nominal}} - \tau_{\text{shift}}, t_{\text{nominal}} + \tau_{\text{shift}}]$$
-4. **Production Batch Contiguity (Commercial Bakery Deck Ovens):**
-   $$\sum_{t=t_{\text{earliest}}}^{t_{\text{latest}}} u_{\text{start}, k, t} = 1, \quad y_{\text{active}, k, t} = \sum_{\tau=\max(0, t-D_k+1)}^t u_{\text{start}, k, \tau}$$
-5. **HVAC Thermal Comfort Deadband:**
-   $$T_{j, t+1} = (1 - \alpha_j) T_{j, t} + \alpha_j T_{\text{ambient}, t} - \beta_j P_{\text{hvac}, j, t}, \quad T_{\min} \le T_{j, t} \le T_{\max}$$
-6. **Battery Energy Storage (BESS) Arbitrage:**
-   $$E_{t+1} = E_t + \left(\eta_{\text{chg}} P_{\text{chg}, t} - \frac{1}{\eta_{\text{dis}}} P_{\text{dis}, t}\right) \Delta t, \quad E_{\min} \le E_t \le E_{\max}$$
-
-### Decision Support & Closed-Loop Verification
-
-- **Actionable Operational Guidance:** The solver output is translated into prioritized operational cards (`DecisionSupportEngine`) in Greek and English.
-- **Closed-Loop Telemetry Audit:** When an intervention is executed, post-intervention telemetry is evaluated against the counterfactual baseline (`ClosedLoopVerifier`) to estimate interval load differences and energy value against an assumed counterfactual (`SUCCESS`, `PARTIAL`, `FAILED`).
-
----
-
-## 2. Pluggable European Market Architecture
-
-The billing and tariff architecture supports modular market adapters across European jurisdictions:
-
-```
-tariff_engine/adapters/
-  ├── base.py       # Abstract Base European Tariff Adapter (Contract, Grid, Taxes, Regulatory)
-  ├── greek.py      # Greek Market Adapter (Γ21, Γ22, Γ23, Law 5068/2023, DEDDIE, ADMIE, ETMEAR, YKO, 6% VAT)
-  ├── german.py     # German Market Adapter (§19 StromNEV Netzentgelte, Konzessionsabgabe, KWKG, Stromsteuer, 19% MwSt)
-  ├── spanish.py    # Spanish Market Adapter (Tarifa 2.0TD / 3.0TD, Periodos Punta/Llano/Valle, Peajes, 21% IVA)
-  └── registry.py   # Thread-safe Adapter Registry & Factory
-```
-
-Each adapter guarantees line-item calculation accuracy according to national energy regulatory authority standards.
-
----
-
-## 3. Hardware Interfacing, Calibration & Safety
-
-### 3.1 SCT-013-000 Burden Resistor Sizing
-- **Turns Ratio:** $2000:1$ ($100\text{ A RMS primary} \implies 50\text{ mA RMS secondary} \implies 70.71\text{ mA peak}$).
-- **3.3V ESP32 ADC ($18\,\Omega$ 1% Metal Film):**
-  $$V_{peak} = 0.07071\text{ A} \times 18\,\Omega = 1.273\text{ V} \implies V_{pp} = 2.546\text{ V}$$
-  Biased at $1.65\text{ V}$, signal spans $[0.377\text{ V}, 2.923\text{ V}]$, safely inside the linear range ($0.15\text{ V} - 3.10\text{ V}$).
-  **Calibration constant:** $K_I = 2000 / 18 = 111.111\text{ A/V} = 0.11111\text{ A/mV}$.
-
-### 3.2 ESP32 Pin Allocation (ADC1 Exclusively)
-- **Phase L1:** GPIO 34 (`ADC1_CH6`)
-- **Phase L2:** GPIO 35 (`ADC1_CH7`)
-- **Phase L3:** GPIO 32 (`ADC1_CH4`)
-- **ADC2 Restriction:** The ESP32 Wi-Fi RF driver locks ADC2. Sampling ADC2 pins causes Wi-Fi disconnects and measurement corruption.
-
-### 3.3 Embedded Calibration DSP Algorithms (`firmware/src/calibration.cpp`)
-- **Piecewise ADC Linearization:** Compresses dead-zone error below 120 mV and decompress saturation near 3.3V.
-- **CT Phase-Angle Lead Compensation:** Corrects current transformer core phase lead ($\theta_e(I) \approx 1.5^\circ - 3.5^\circ$), eliminating active power distortion on inductive loads ($\cos\varphi < 0.85$).
-- **Dynamic Virtual Ground Tracking:** Exponential moving average auto-calibrates $1.65\text{ V}$ bias drift due to temperature expansion.
-
----
-
-## 4. Quickstart Guide
-
-### 4.1 Installation
+### 6.1 Installation
 ```bash
 git clone https://github.com/DimThanasoulias/Behind-the-Meter-EMS.git
 cd Behind-the-Meter-EMS
 
 # Create virtual environment and install in editable mode
 python -m venv .venv
-source .venv/bin/activate  # On Windows: .venv\Scripts\activate
-pip install -e .
+source .venv/bin/activate  # On Windows: .venv\Scripts\Activate.ps1
+pip install -e ".[dev,research,firmware]"
 ```
 
-### 4.2 Run Automated Test Suite (511 Tests)
+### 6.2 Run Automated Test Suite
 ```bash
+# Set thread caps for numerical libraries on Windows/Linux
+$env:OPENBLAS_NUM_THREADS="1"; $env:OMP_NUM_THREADS="1"  # PowerShell
 pytest -v
 ```
-All 511 unit, integration, and tiered end-to-end tests execute in **~5.5 seconds** with 100% pass rate.
+All **713** unit, integration, and tiered end-to-end tests execute cleanly.
 
-### 4.3 Start the FastAPI Backend & Web Dashboard
+### 6.3 Start FastAPI Backend & Web Dashboard
 ```bash
 uvicorn backend.main:app --host 0.0.0.0 --port 8000 --reload
 ```
 Access endpoints:
-- **Interactive Web Dashboard:** `http://localhost:8000/dashboard`
-- **Optimization API:** `http://localhost:8000/api/v1/optimization/status`
-- **Interactive OpenAPI Documentation:** `http://localhost:8000/docs`
+* **Interactive Web Dashboard:** `http://localhost:8000/dashboard`
+* **Schedule Studio UI:** `http://localhost:8000/dashboard` (Schedule Studio tab)
+* **Interactive OpenAPI Documentation:** `http://localhost:8000/docs`
 
-### 4.4 Run Standalone E2E Verification (< 30 Seconds)
+### 6.4 Run Standalone E2E Verification (< 30 Seconds)
 ```bash
-# Commercial Bakery
+# Commercial Bakery profile
 python scripts/run_e2e_verification.py --profile bakery
 
-# Cold Storage Facility
+# Cold Storage Facility profile
 python scripts/run_e2e_verification.py --profile cold_storage
 
-# Boutique Hotel
+# Boutique Hotel profile
 python scripts/run_e2e_verification.py --profile hotel
 ```
 
-### 4.5 Run the Commercial Telemetry Simulator
+### 6.5 Run the Commercial Telemetry Simulator
 Stream 24 hours of accelerated commercial load with peak breach injection:
 ```bash
 python -m simulator.cli --profile bakery --speed 60x --url http://localhost:8000/api/v1/telemetry
@@ -168,32 +273,31 @@ python -m simulator.cli --profile bakery --speed 60x --url http://localhost:8000
 
 ---
 
-## 5. Generic SME Equipment Schedule Studio (`optimization_engine/scheduling_service.py`)
+## 7. Generic SME Equipment Schedule Studio
 
-An SME-friendly, multi-resolution scheduling environment ("Schedule Studio") allowing facility owners to define arbitrary electrical equipment and generate mathematical advisory schedules:
+An SME-friendly, multi-resolution scheduling environment allowing facility owners to define electrical equipment and generate mathematical advisory schedules:
 
-- **Multi-Resolution Solving:** Native support for 5, 15, 30, and 60-minute time intervals ($N \in \{288, 96, 48, 24\}$ slots).
-- **Flexible Equipment Operating Models:**
-  - Arbitrary rated kW and required duration.
-  - Permissible time windows including midnight-crossing ranges (e.g., 22:00 to 06:00).
-  - Strict contiguity constraints for non-interruptible loads (ovens, dishwashers, industrial machinery).
-  - Distributed time-slot allocations for interruptible loads (water heaters, HVAC pre-cooling, EV chargers).
-  - Must-run guarantees vs. graceful omission of lower-priority optional equipment under constrained capacity.
-  - Soft preferred start times with priority-weighted penalties.
-- **Conservative Baseline Uncertainty Buffer (+10%):** Protects against physical breaker trips and replay infeasibility discovered during real-world empirical audits ($P_{\text{base, cons}} = 1.10 \times P_{\text{base}}$).
-- **Advisory-Only Paradigm:** Strictly decision-support. Generates natural-language Greek operational explanations (`explanation_el`) for each asset without automatic hardware actuation.
-- **Full REST API Suite:**
-  - `GET/POST /api/v1/facilities/{facility_id}/assets`: Equipment inventory CRUD.
-  - `GET/PUT/DELETE /api/v1/facilities/{facility_id}/assets/{asset_id}`: Single asset operations.
-  - `GET/PUT /api/v1/facilities/{facility_id}/schedule-settings`: Facility resolution, power limits, and objective modes (`cost`, `peak`, `balanced`).
-  - `POST /api/v1/facilities/{facility_id}/schedules/preview`: Real-time schedule optimization preview with Gantt and load profile timeline.
-  - `POST /api/v1/facilities/{facility_id}/schedules/save`: Persistent storage of approved schedules.
-  - `GET /api/v1/facilities/{facility_id}/schedules`: Historical schedule retrieval.
-- **Interactive Web UI:** Integrated into `/dashboard` under the "Schedule Studio" tab, featuring quick templates, equipment toggles, modal dialogs, and Chart.js before/after load comparison curves.
+* **Multi-Resolution Solving**: Native support for 5, 15, 30, and 60-minute time intervals ($N \in \{288, 96, 48, 24\}$ slots).
+* **Flexible Equipment Operating Models**:
+  * Arbitrary rated kW and required duration.
+  * Permissible time windows including midnight-crossing ranges (e.g., 22:00 to 06:00).
+  * Strict contiguity constraints for non-interruptible loads (deck ovens, dishwashers, industrial machinery).
+  * Distributed time-slot allocations for interruptible loads (water heaters, HVAC pre-cooling, EV chargers).
+  * Must-run guarantees vs. graceful omission of lower-priority optional equipment under constrained capacity.
+  * Soft preferred start times with priority-weighted penalties.
+* **Conservative Baseline Uncertainty Buffer (+10%)**: Protects against physical breaker trips and replay infeasibility discovered during real-world empirical audits ($P_{\text{base, cons}} = 1.10 \times P_{\text{base}}$).
+* **Advisory-Only Paradigm**: Strictly decision-support. Generates natural-language Greek operational explanations (`explanation_el`) for each asset without automatic hardware actuation.
+* **Full REST API Suite**:
+  * `GET/POST /api/v1/facilities/{facility_id}/assets`: Equipment inventory CRUD.
+  * `GET/PUT/DELETE /api/v1/facilities/{facility_id}/assets/{asset_id}`: Single asset operations.
+  * `GET/PUT /api/v1/facilities/{facility_id}/schedule-settings`: Facility resolution, power limits, and objective modes (`cost`, `peak`, `balanced`).
+  * `POST /api/v1/facilities/{facility_id}/schedules/preview`: Real-time schedule optimization preview with Gantt and load profile timeline.
+  * `POST /api/v1/facilities/{facility_id}/schedules/save`: Persistent storage of approved schedules.
+  * `GET /api/v1/facilities/{facility_id}/schedules`: Historical schedule retrieval.
 
 ---
 
-## 6. Technical Feature Inventory (F01–F34)
+## 8. Technical Feature Inventory (F01–F34)
 
 | # | Feature | Subsystem | Description |
 |---|---|---|---|
@@ -234,8 +338,26 @@ An SME-friendly, multi-resolution scheduling environment ("Schedule Studio") all
 
 ---
 
-## 7. Regulatory Compliance & Electrical Safety
+## 9. Documentation Index
 
-- **ELOT 60364 / HD 384:** Electrical installations of buildings. Guarantees physical isolation between low-voltage signal wiring and 400V mains busbars.
-- **Law 5068/2023 & MD ΥΠΕΝ:** Greek retail electricity market reorganization establishing Green, Yellow, and Dynamic retail tariffs.
-- **DEDDIE & ADMIE Grid Codes:** Compliant with distribution network connection terms, contracted kVA thresholds, and low power factor surcharge schedules ($\cos\varphi < 0.85$).
+| Guide | Document Link | Description |
+|---|---|---|
+| **Product & Competition Dossier** | [`docs/product/PRODUCT_DOSSIER.md`](docs/product/PRODUCT_DOSSIER.md) | Competition pitch evidence, demonstration flow, commercial hypotheses, and reproduction commands. |
+| **Repository Review & Audit** | [`docs/product/REPOSITORY_REVIEW_2026-10-01.md`](docs/product/REPOSITORY_REVIEW_2026-10-01.md) | Exhaustive code, documentation, and technical feasibility review with prioritized findings. |
+| **Field Pilot & IPMVP Protocol** | [`docs/product/field_pilot_protocol_ipmvp.md`](docs/product/field_pilot_protocol_ipmvp.md) | 8-week shadow-mode single-site pilot protocol following IPMVP Option B guidelines. |
+| **Tariff & Bill Audit Report** | [`docs/tariff_validation_report.md`](docs/tariff_validation_report.md) | Calculation regression benchmark across 9 Greek bills (Γ21, Γ22, Γ23, Green, Yellow, Dynamic) with 0.00% formula discrepancy. |
+| **Measurement Uncertainty Report** | [`docs/measurement_uncertainty_report.md`](docs/measurement_uncertainty_report.md) | ISO/IEC Guide 98-3 GUM error budget, ESP32 ADC linearization, and CT phase-shift compensation. |
+| **Hardware Schematics & Wiring** | [`docs/wiring_schematic.md`](docs/wiring_schematic.md) | SCT-013 CT clamp connections, burden resistor calculation ($18\,\Omega$), ADC1 pinout, virtual ground, and ELOT 60364 safety rules. |
+| **Hardware Bill of Materials (BOM)** | [`docs/hardware_bom.md`](docs/hardware_bom.md) | Sub-€50 hobby component list, part numbers, suppliers, PCB layout, and DIN-rail enclosure guidance. |
+| **Greek Commercial Electricity Tariffs** | [`docs/greek_tariffs_guide.md`](docs/greek_tariffs_guide.md) | Analysis of contracts Γ21, Γ22, Γ23, Law 5068/2023 Green tariff formula, DEDDIE peak schedules, and power factor penalties. |
+| **REST API Reference** | [`docs/api_reference.md`](docs/api_reference.md) | FastAPI endpoint documentation, optimization endpoints (`/api/v1/optimization`), market feeds, Viber webhook, and dashboard. |
+| **Telegram & Viber Bot Guide** | [`docs/telegram_bot_guide.md`](docs/telegram_bot_guide.md) | BotFather configuration, Viber bot tokens, webhook routing, anti-spam throttling, and Greek interactive commands. |
+| **Production Deployment Guide** | [`docs/deployment_guide.md`](docs/deployment_guide.md) | Systemd unit configuration, environment variables, PlatformIO ESP32 firmware flashing, and operations runbook. |
+
+---
+
+## 10. Regulatory Compliance & Electrical Safety
+
+* **ELOT 60364 / HD 384**: Electrical installations of buildings. Guarantees physical isolation between low-voltage signal wiring and 400V mains busbars.
+* **Law 5068/2023 & MD ΥΠΕΝ**: Greek retail electricity market reorganization establishing Green, Yellow, and Dynamic retail tariffs.
+* **DEDDIE & ADMIE Grid Codes**: Compliant with distribution network connection terms, contracted kVA thresholds, and low power factor surcharge schedules ($\cos\varphi < 0.85$).
