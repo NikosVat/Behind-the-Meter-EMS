@@ -1,0 +1,27 @@
+# EXAMPLE SKELETON. Values are null on purpose (status PLACEHOLDER).
+# Fill only from a source listed as VERIFIED in docs/RULES_SOURCES.md.
+rule_set: gr-dist-network
+version: "2026-02-01"
+effective_from: 2026-02-01
+effective_to: null
+source:
+  title: "TODO: RAAEY decision on distribution network charges"
+  url: "TODO"
+  retrieved: null
+status: PLACEHOLDER
+applies_to:
+  voltage: [LV]
+  network_category: ["TODO"]
+components:
+  - id: dist_fixed
+    kind: per_kva_year
+    value: null
+    unit: EUR_per_kVA_year
+  - id: dist_variable
+    kind: per_kwh
+    value: null
+    unit: EUR_per_kWh
+    modifiers:
+      - if: has_reactive_metering
+        divide_by: cos_phi_period
+time_windows: []

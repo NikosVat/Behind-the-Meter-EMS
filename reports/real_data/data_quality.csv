@@ -1,4 +1,0 @@
-building,type,timezone,raw_hours,missing_hours,nonpositive_hours,near_zero_test_hours,mean_2016_kw,mean_2017_kw,train_hours,validation_hours,test_hours,test_days,excluded_test_days,selected_on_validation
-Wolf_retail_Marcella,Retail,Europe/Dublin,17544,1,0,0,7.2534690915300555,6.7545575978993035,6120,2088,8520,355,10,gradient_boosting
-Panther_retail_Lester,Retail,US/Eastern,17544,11,1922,0,3.6289633652094717,6.721430757800891,3960,2088,8208,342,23,ridge
-Lamb_office_Peggy,Office,Europe/London,17544,0,142,6886,3.3550205714936245,0.2738689383561644,5736,2088,7776,324,41,ridge

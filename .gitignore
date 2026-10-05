@@ -51,3 +51,8 @@ firmware/src/secrets.h
 .agents/
 
 .superpowers/
+secrets/
+meter_bridge/buffer.sqlite3
+.claude/settings.local.json
+.mypy_cache/
+.hypothesis/
