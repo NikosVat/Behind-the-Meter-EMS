@@ -37,9 +37,10 @@ Covers:
 
 import math
 from datetime import datetime, timezone
-import pytest
-from backend.models.telemetry import TelemetryPayload, PhaseReading
 
+import pytest
+
+from backend.models.telemetry import TelemetryPayload
 
 # =====================================================================
 # PYTHON REFERENCE IMPLEMENTATION OF C++ FIRMWARE ALGORITHMS

@@ -8,7 +8,7 @@ version = "0.1.0"
 description = "Behind-the-Meter Energy Management System (EMS) for Greek Commercial SMBs"
 readme = "README.md"
 license = { text = "MIT" }
-requires-python = ">=3.10"
+requires-python = ">=3.12"
 dependencies = [
     "fastapi>=0.110.0",
     "pydantic>=2.0.0",
@@ -20,6 +20,7 @@ dependencies = [
     "numpy>=1.23.0",
     "scipy>=1.9.0",
     "beautifulsoup4>=4.12.0",
+    "pyyaml>=6.0",
     "tzdata>=2024.1; sys_platform == 'win32'",
 ]
 
@@ -27,21 +28,14 @@ dependencies = [
 dev = [
     "pytest>=8.0.0",
     "pytest-asyncio>=0.23.0",
-]
-research = [
-    "pandas>=2.0,<3",
-    "scikit-learn>=1.3,<2",
-    "matplotlib>=3.7,<4",
-    "threadpoolctl>=3.1,<4",
-]
-firmware = [
-    "platformio>=6.2,<7",
-    "ziglang==0.16.0",
+    "hypothesis>=6.100",
+    "ruff>=0.6",
+    "mypy>=1.10",
 ]
 
 [tool.setuptools.packages.find]
 where = ["."]
-include = ["backend*", "bot*", "simulator*", "tariff_engine*", "optimization_engine*", "calibration*"]
+include = ["backend*", "bot*", "simulator*", "tariff_engine*", "optimization_engine*"]
 exclude = ["tests*", "firmware*", "docs*", "scripts*"]
 
 [tool.setuptools.package-data]
@@ -57,11 +51,22 @@ filterwarnings = [
 
 [tool.ruff]
 line-length = 120
-target-version = "py310"
+target-version = "py312"
 
 [tool.ruff.lint]
 ignore = [
     "B008",    # FastAPI Depends/Query in function defaults
     "BLE001",  # Do not catch blind exception
     "S110",    # try-except-pass
+    "UP017",   # deferred: datetime.UTC rewrite touches ~200 lines; do in a dedicated pass
 ]
+
+[tool.ruff.lint.per-file-ignores]
+# Deferred upstream findings (phase 1 baseline); fix when these files are next touched.
+"backend/**" = ["FURB162"]
+"bot/command_handlers.py" = ["FURB162"]
+"optimization_engine/scheduling_service.py" = ["SIM102"]
+"tests/unit/test_firmware_math.py" = ["RUF012"]
+"tests/unit/test_phase1_tariff_cost_regressions.py" = ["DTZ001"]
+"tests/unit/test_schedule_review_regressions.py" = ["C408"]
+"tests/unit/test_simulator_profiles.py" = ["B017"]

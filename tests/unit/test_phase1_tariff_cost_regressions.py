@@ -1,10 +1,12 @@
 from datetime import datetime, timezone
 from zoneinfo import ZoneInfo
+
 import pytest
-from tariff_engine.contracts import get_greek_season, is_offpeak_window, is_peak_window, Season, to_athens_time
-from backend.market.service import MarketPriceService
+
 from backend.database.sqlite_store import SQLiteStore
 from backend.market.models import DamHourlyPrice
+from backend.market.service import MarketPriceService
+from tariff_engine.contracts import Season, get_greek_season, is_offpeak_window, is_peak_window, to_athens_time
 
 ATHENS_TZ = ZoneInfo("Europe/Athens")
 
@@ -68,8 +70,8 @@ class TestTimezoneRegressions:
         assert price == 155.0
 
 
+from tariff_engine.green_tariff import calculate_green_tariff_fluctuation
 from tariff_engine.yellow_dynamic import calculate_yellow_dynamic_supply_rate, to_kwh_rate
-from tariff_engine.green_tariff import calculate_green_tariff_fluctuation, calculate_green_tariff_supply_rate
 
 
 class TestPricingUnitsRegressions:
@@ -118,7 +120,8 @@ class TestPricingUnitsRegressions:
 
     def test_units_module_centralization(self):
         """Verify tariff_engine.units exposes PriceUnit and to_kwh_rate with strict validation."""
-        from tariff_engine.units import PriceUnit as UnitType, to_kwh_rate as units_to_kwh_rate
+        from tariff_engine.units import PriceUnit as UnitType  # noqa: F401
+        from tariff_engine.units import to_kwh_rate as units_to_kwh_rate
         assert units_to_kwh_rate(250.0, "EUR_MWH") == 0.250
         assert units_to_kwh_rate(0.250, "EUR_KWH") == 0.250
         with pytest.raises(ValueError, match="Unsupported price unit"):

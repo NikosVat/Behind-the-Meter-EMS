@@ -4,10 +4,8 @@ Unit Test Suite for European Market Adapters (Requirement R4).
 Validates:
 1. BaseMarketAdapter abstract interface and data structures.
 2. GreekMarketAdapter (GR / HEnEx / Law 5068/2023 / DEDDIE / ADMIE).
-3. GermanMarketAdapter (DE-LU / EPEX Spot / §14a EnWG Modul 1, 2, 3).
-4. SpanishMarketAdapter (ES / OMIE / Tarifa 2.0TD Punta/Llano/Valle).
-5. MarketAdapterRegistry dynamic registration, aliasing, and error handling.
-6. Optimization Engine C_t vector compatibility with SciPy HiGHS MILP solver.
+3. MarketAdapterRegistry dynamic registration, aliasing, and error handling.
+4. Optimization Engine C_t vector compatibility with SciPy HiGHS MILP solver.
 """
 
 from __future__ import annotations
@@ -25,24 +23,11 @@ from tariff_engine.adapters.base import (
     HourlyPriceVector,
     MarketMetadata,
 )
-from tariff_engine.adapters.german import (
-    DEFAULT_NETZENTGELT_AP_EUR_KWH,
-    GERMAN_VAT_RATE,
-    GermanFacilityContract,
-    GermanMarketAdapter,
-)
 from tariff_engine.adapters.greek import GreekMarketAdapter
 from tariff_engine.adapters.registry import (
     MarketAdapterRegistry,
     get_market_adapter,
     register_default_adapters,
-)
-from tariff_engine.adapters.spanish import (
-    PEAJE_LLANO_P2_EUR_KWH,
-    PEAJE_PUNTA_P1_EUR_KWH,
-    PEAJE_VALLE_P3_EUR_KWH,
-    SPANISH_VAT_RATE,
-    SpanishMarketAdapter,
 )
 from tariff_engine.contracts import ATHENS_TZ, ContractProfile, TariffContract
 
@@ -233,147 +218,7 @@ class TestGreekMarketAdapter:
 
 
 # =============================================================================
-# 3. German Market Adapter Tests (Requirement R4 / F7)
-# =============================================================================
-
-class TestGermanMarketAdapter:
-    @pytest.fixture
-    def adapter(self) -> GermanMarketAdapter:
-        return GermanMarketAdapter()
-
-    def test_metadata(self, adapter: GermanMarketAdapter) -> None:
-        meta = adapter.get_market_metadata()
-        assert meta.bidding_zone == "DE-LU"
-        assert meta.country_name == "Germany"
-        assert meta.regulatory_body == "BNetzA"
-        assert meta.wholesale_market == "EPEX Spot"
-        assert meta.default_vat_rate == GERMAN_VAT_RATE
-
-    def test_negative_wholesale_price_handling(self, adapter: GermanMarketAdapter) -> None:
-        """Verifies that negative wholesale prices (renewable surplus) pass through cleanly."""
-        start = utc_dt(2026, 6, 15, 0, 0)
-        spot_prices = [-20.0] * 24  # -20 €/MWh
-        vectors = adapter.get_hourly_price_vector(start, horizon_hours=24, spot_prices=spot_prices)
-        assert vectors[0].energy_rate_eur_kwh < 0.0  # -0.020 + 0.0180 = -0.0020
-        assert vectors[0].total_rate_inc_vat > 0.0   # Grid + taxes keep total positive
-
-    def test_enwg_14a_modul2_reduction(self, adapter: GermanMarketAdapter) -> None:
-        """Verifies §14a EnWG Modul 2 applies 60% volumetric reduction to Netzentgelte."""
-        start = utc_dt(2026, 6, 15, 10, 0)
-        c_modul0 = GermanFacilityContract(enwg_14a_module=0)
-        vectors_0 = adapter.get_hourly_price_vector(start, horizon_hours=1, facility_contract=c_modul0)
-
-        c_modul2 = GermanFacilityContract(enwg_14a_module=2)
-        vectors_2 = adapter.get_hourly_price_vector(start, horizon_hours=1, facility_contract=c_modul2)
-
-        # Modul 2 = base_ap * 0.40
-        expected_ap = round(DEFAULT_NETZENTGELT_AP_EUR_KWH * 0.40, 5)
-        assert vectors_2[0].grid_distribution_rate == expected_ap
-        assert vectors_2[0].grid_distribution_rate < vectors_0[0].grid_distribution_rate
-
-    def test_enwg_14a_modul3_dynamic_grid_fees(self, adapter: GermanMarketAdapter) -> None:
-        """Verifies §14a EnWG Modul 3 time-variable dynamic grid fee multipliers."""
-        start = utc_dt(2026, 6, 15, 0, 0)  # Monday
-        c_modul3 = GermanFacilityContract(enwg_14a_module=3)
-        vectors = adapter.get_hourly_price_vector(start, horizon_hours=24, facility_contract=c_modul3)
-
-        base_ap = DEFAULT_NETZENTGELT_AP_EUR_KWH
-        ht_rate = round(base_ap * 1.60, 5)  # Peak 17:00-21:00 (+60%)
-        st_rate = round(base_ap * 0.50, 5)  # Low 00:00-06:00 (-50%)
-
-        # Hour 2 (02:00) should be low tariff (ST)
-        assert vectors[2].grid_distribution_rate == st_rate
-        assert vectors[2].is_peak_window is False
-
-        # Hour 18 (18:00) should be high tariff (HT)
-        assert vectors[18].grid_distribution_rate == ht_rate
-        assert vectors[18].is_peak_window is True
-
-    def test_german_periodic_bill_modul1_credit(self, adapter: GermanMarketAdapter) -> None:
-        """Verifies periodic billing calculation applies Modul 1 flat rebate credit."""
-        bill_input = type("BillInput", (), {
-            "bill_id": "DE-TEST-01",
-            "billing_period_days": 30,
-            "energy_active_total_kwh": 5000.0,
-            "contracted_capacity_kva": 40.0,
-            "wholesale_tea_dam_eur_mwh": 95.0,
-            "enwg_14a_module": 1,
-        })()
-        bill = adapter.calculate_periodic_bill(bill_input)
-        assert bill["bidding_zone"] == "DE-LU"
-        assert bill["enwg_14a_rebate_eur"] > 0.0  # (150 / 365) * 30 ≈ 12.33 €
-        assert bill["total_payable_eur"] > 0.0
-
-
-# =============================================================================
-# 4. Spanish Market Adapter Tests (Requirement R4 / F7)
-# =============================================================================
-
-class TestSpanishMarketAdapter:
-    @pytest.fixture
-    def adapter(self) -> SpanishMarketAdapter:
-        return SpanishMarketAdapter()
-
-    def test_metadata(self, adapter: SpanishMarketAdapter) -> None:
-        meta = adapter.get_market_metadata()
-        assert meta.bidding_zone == "ES"
-        assert meta.country_name == "Spain"
-        assert meta.regulatory_body == "CNMC"
-        assert meta.wholesale_market == "OMIE"
-        assert meta.default_vat_rate == SPANISH_VAT_RATE
-
-    def test_20td_period_classification(self) -> None:
-        """Tests Tarifa 2.0TD 3-period ToU classification (Punta, Llano, Valle)."""
-        # Monday 11:00 -> Punta (P1)
-        assert SpanishMarketAdapter.get_20td_period(utc_dt(2026, 7, 13, 11, 0)) == "P1"
-        # Monday 15:00 -> Llano (P2)
-        assert SpanishMarketAdapter.get_20td_period(utc_dt(2026, 7, 13, 15, 0)) == "P2"
-        # Monday 04:00 -> Valle (P3)
-        assert SpanishMarketAdapter.get_20td_period(utc_dt(2026, 7, 13, 4, 0)) == "P3"
-
-        # Saturday & Sunday are strictly Valle (P3) all 24 hours
-        assert SpanishMarketAdapter.get_20td_period(utc_dt(2026, 7, 18, 11, 0)) == "P3"
-        assert SpanishMarketAdapter.get_20td_period(utc_dt(2026, 7, 19, 19, 0)) == "P3"
-
-    def test_hourly_price_vector_tolls(self, adapter: SpanishMarketAdapter) -> None:
-        """Verifies applicable network tolls match P1, P2, P3 statutory rates."""
-        start = utc_dt(2026, 7, 13, 0, 0)  # Monday
-        vectors = adapter.get_hourly_price_vector(start, horizon_hours=24)
-
-        # Hour 4 (Valle)
-        assert vectors[4].grid_distribution_rate == PEAJE_VALLE_P3_EUR_KWH
-        assert vectors[4].is_peak_window is False
-
-        # Hour 11 (Punta)
-        assert vectors[11].grid_distribution_rate == PEAJE_PUNTA_P1_EUR_KWH
-        assert vectors[11].is_peak_window is True
-
-        # Hour 15 (Llano)
-        assert vectors[15].grid_distribution_rate == PEAJE_LLANO_P2_EUR_KWH
-        assert vectors[15].is_peak_window is False
-
-    def test_spanish_periodic_bill(self, adapter: SpanishMarketAdapter) -> None:
-        """Verifies periodic billing computes 3 energy terms, potencia, IEE, and VAT."""
-        bill_input = type("BillInput", (), {
-            "bill_id": "ES-TEST-01",
-            "billing_period_days": 30,
-            "potencia_punta_kw": 15.0,
-            "potencia_valle_kw": 15.0,
-            "energy_p1_kwh": 400.0,
-            "energy_p2_kwh": 600.0,
-            "energy_p3_kwh": 800.0,
-            "wholesale_tea_dam_eur_mwh": 85.0,
-        })()
-        bill = adapter.calculate_periodic_bill(bill_input)
-        assert bill["bidding_zone"] == "ES"
-        assert bill["potencia_subtotal_eur"] > 0.0
-        assert bill["energia_subtotal_eur"] > 0.0
-        assert bill["impuesto_electrico_eur"] > 0.0
-        assert bill["total_payable_eur"] > 0.0
-
-
-# =============================================================================
-# 5. Market Adapter Registry Tests (Requirement R4 / F7)
+# 3. Market Adapter Registry Tests (Requirement R4 / F7)
 # =============================================================================
 
 class TestMarketAdapterRegistry:
@@ -383,8 +228,6 @@ class TestMarketAdapterRegistry:
     def test_supported_zones(self) -> None:
         zones = MarketAdapterRegistry.list_supported_zones()
         assert "GR" in zones
-        assert "DE-LU" in zones
-        assert "ES" in zones
 
     def test_resolve_by_canonical_and_alias(self) -> None:
         # Greek aliases
@@ -393,38 +236,27 @@ class TestMarketAdapterRegistry:
         assert isinstance(MarketAdapterRegistry.get_adapter("GREECE"), GreekMarketAdapter)
         assert isinstance(MarketAdapterRegistry.get_adapter("gr"), GreekMarketAdapter)
 
-        # German aliases
-        ad_de = MarketAdapterRegistry.get_adapter("DE-LU")
-        assert isinstance(ad_de, GermanMarketAdapter)
-        assert isinstance(MarketAdapterRegistry.get_adapter("DE"), GermanMarketAdapter)
-        assert isinstance(MarketAdapterRegistry.get_adapter("germany"), GermanMarketAdapter)
-
-        # Spanish aliases
-        ad_es = MarketAdapterRegistry.get_adapter("ES")
-        assert isinstance(ad_es, SpanishMarketAdapter)
-        assert isinstance(MarketAdapterRegistry.get_adapter("SPAIN"), SpanishMarketAdapter)
-
     def test_unsupported_zone_raises_value_error(self) -> None:
         with pytest.raises(ValueError, match="Unsupported electricity bidding zone 'FR'"):
             MarketAdapterRegistry.get_adapter("FR")
 
     def test_is_zone_supported(self) -> None:
         assert MarketAdapterRegistry.is_zone_supported("GR") is True
-        assert MarketAdapterRegistry.is_zone_supported("de") is True
+        assert MarketAdapterRegistry.is_zone_supported("gr") is True
         assert MarketAdapterRegistry.is_zone_supported("XYZ") is False
 
     def test_get_metadata_without_instance(self) -> None:
-        meta = MarketAdapterRegistry.get_metadata("DE")
-        assert meta.country_code == "DE"
-        assert meta.regulatory_body == "BNetzA"
+        meta = MarketAdapterRegistry.get_metadata("GR")
+        assert meta.country_code == "GR"
+        assert meta.regulatory_body == "RAAEY"
 
 
 # =============================================================================
-# 6. Optimization Engine C_t Vector & SciPy MILP Solver Tests
+# 4. Optimization Engine C_t Vector & SciPy MILP Solver Tests
 # =============================================================================
 
 class TestOptimizerIntegration:
-    @pytest.mark.parametrize("zone", ["GR", "DE-LU", "ES"])
+    @pytest.mark.parametrize("zone", ["GR"])
     def test_c_t_vector_properties(self, zone: str) -> None:
         """Verifies that all adapters generate clean 24-element finite positive C_t vectors."""
         adapter = get_market_adapter(zone)
@@ -436,7 +268,7 @@ class TestOptimizerIntegration:
         assert all(c > 0.0 for c in c_t)
         assert all(not np.isnan(c) and not np.isinf(c) for c in c_t)
 
-    @pytest.mark.parametrize("zone", ["GR", "DE-LU", "ES"])
+    @pytest.mark.parametrize("zone", ["GR"])
     def test_highs_milp_solver_optimization(self, zone: str) -> None:
         """
         Solves a 24-hour constrained load scheduling problem using SciPy HiGHS MILP solver:

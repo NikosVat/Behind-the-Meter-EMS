@@ -13,8 +13,9 @@ Validates:
 from __future__ import annotations
 
 import copy
+from collections.abc import Generator
 from datetime import datetime, timedelta, timezone
-from typing import Any, Generator
+from typing import Any
 
 import pytest
 from fastapi.testclient import TestClient
@@ -117,7 +118,6 @@ class TestTelemetryIngestionAPI:
         # Second reading: cumulative 110 kWh (+10 kWh delta)
         reading2 = copy.deepcopy(valid_telemetry_dict)
         reading2["timestamp"] = "2026-09-14T10:15:00Z"
-        reading2["cumulative_energy_kwh"] == 110.0
         reading2["cumulative_energy_kwh"] = 110.0
         res2 = test_client.post("/api/v1/telemetry", json=reading2)
         assert res2.status_code == 200

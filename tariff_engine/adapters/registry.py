@@ -97,14 +97,10 @@ def get_market_adapter(bidding_zone: str = "GR", **kwargs: Any) -> BaseMarketAda
 
 
 def register_default_adapters() -> None:
-    """Registers built-in European market adapters."""
-    from tariff_engine.adapters.german import GermanMarketAdapter
+    """Registers the built-in Greek market adapter."""
     from tariff_engine.adapters.greek import GreekMarketAdapter
-    from tariff_engine.adapters.spanish import SpanishMarketAdapter
 
     MarketAdapterRegistry.register("GR", GreekMarketAdapter, aliases=["GREECE", "GR-EL"])
-    MarketAdapterRegistry.register("DE-LU", GermanMarketAdapter, aliases=["DE", "GERMANY"])
-    MarketAdapterRegistry.register("ES", SpanishMarketAdapter, aliases=["SPAIN", "ESPAÑA"])
 
 
 # Auto-register defaults on initial import

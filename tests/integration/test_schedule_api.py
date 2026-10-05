@@ -10,8 +10,9 @@ Verifies:
 
 from __future__ import annotations
 
+from collections.abc import Generator
+
 import pytest
-from typing import Generator
 from fastapi.testclient import TestClient
 
 from backend.database.sqlite_store import get_store

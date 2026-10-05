@@ -13,6 +13,7 @@ import pytest
 from fastapi.testclient import TestClient
 
 from backend.main import create_app
+from optimization_engine.decision_support import ClosedLoopVerifier, DecisionSupportEngine
 from optimization_engine.models import (
     ActionRecommendation,
     BESSLoad,
@@ -22,12 +23,9 @@ from optimization_engine.models import (
     PriorityLevel,
     ProductionBatchLoad,
     RecommendationCategory,
-    ScheduleResult,
     VerificationStatus,
 )
 from optimization_engine.solver import ConstrainedLoadSolver
-from optimization_engine.decision_support import ClosedLoopVerifier, DecisionSupportEngine
-
 
 # --- 1. Equipment Constraint & Solver Tests ---
 

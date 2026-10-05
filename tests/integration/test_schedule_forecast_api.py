@@ -3,8 +3,8 @@ from datetime import datetime, timedelta, timezone
 import pytest
 from fastapi.testclient import TestClient
 
-from backend.main import create_app
 from backend.database.sqlite_store import get_store
+from backend.main import create_app
 from backend.models.telemetry import TelemetryPayload
 
 

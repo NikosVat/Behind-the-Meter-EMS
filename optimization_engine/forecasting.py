@@ -6,9 +6,9 @@ module requires only NumPy; research MLPs and firmware models are separate model
 from __future__ import annotations
 
 import math
+from collections.abc import Mapping
 from dataclasses import dataclass
 from datetime import date, datetime, time, timedelta, timezone
-from collections.abc import Mapping
 from zoneinfo import ZoneInfo
 
 import numpy as np

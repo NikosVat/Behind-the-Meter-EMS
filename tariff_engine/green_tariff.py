@@ -18,7 +18,6 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 
-
 from tariff_engine.units import PriceUnit, to_kwh_rate
 
 

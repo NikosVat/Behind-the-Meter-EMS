@@ -2,12 +2,12 @@
 import pytest
 from fastapi.testclient import TestClient
 
-from backend.main import create_app
 from backend.database.sqlite_store import SQLiteStore
+from backend.main import create_app
 from backend.models.telemetry import TelemetryPayload
+from optimization_engine.decision_support import ClosedLoopVerifier, DecisionSupportEngine
 from optimization_engine.models import DefrostLoad, HVACLoad, OptimizationProblem, ProductionBatchLoad
 from optimization_engine.solver import ConstrainedLoadSolver
-from optimization_engine.decision_support import DecisionSupportEngine, ClosedLoopVerifier
 
 
 @pytest.mark.parametrize("kind", ["batch", "defrost"])
@@ -104,6 +104,7 @@ def test_verification_interval_rejects_invalid_evidence(tmp_path, valid_telemetr
 
 def test_database_upgrade_preserves_existing_rows(tmp_path, valid_telemetry_dict):
     import sqlite3
+
     from backend.database.sqlite_store import SCHEMA_SQL
     path = str(tmp_path / "upgrade.db")
     with sqlite3.connect(path) as conn:

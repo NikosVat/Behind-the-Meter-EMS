@@ -15,17 +15,18 @@ Validates:
 
 from __future__ import annotations
 
-import pytest
 from datetime import date
+
+import pytest
 
 from optimization_engine.scheduling_models import (
     GenericEquipmentAsset,
     ScheduleSettings,
 )
 from optimization_engine.scheduling_service import (
-    schedule_sme_equipment,
-    _parse_time_to_slot,
     _format_slot_to_time,
+    _parse_time_to_slot,
+    schedule_sme_equipment,
 )
 
 

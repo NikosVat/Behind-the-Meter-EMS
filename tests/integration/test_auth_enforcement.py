@@ -59,6 +59,5 @@ def test_viber_invalid_signature_is_rejected(secured_client):
 def test_production_startup_requires_api_key(tmp_path, monkeypatch):
     monkeypatch.setattr(settings, "ENVIRONMENT", "production")
     monkeypatch.setattr(settings, "API_KEY", None)
-    with pytest.raises(RuntimeError, match="API_KEY"):
-        with TestClient(create_app(str(tmp_path / "production.db"))):
-            pass
+    with pytest.raises(RuntimeError, match="API_KEY"), TestClient(create_app(str(tmp_path / "production.db"))):
+        pass

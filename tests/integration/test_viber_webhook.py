@@ -13,14 +13,14 @@ from __future__ import annotations
 import hashlib
 import hmac
 import json
+from collections.abc import Generator
 from datetime import datetime, timezone
-from typing import Generator
 
 import pytest
 from fastapi.testclient import TestClient
 
 from backend.config import settings
-from backend.database.sqlite_store import SQLiteStore, get_store
+from backend.database.sqlite_store import get_store
 from backend.main import create_app
 from bot.viber_client import MockViberClient
 

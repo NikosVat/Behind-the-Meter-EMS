@@ -12,8 +12,8 @@ Implements Greek-language command handlers for commercial business owners:
 from __future__ import annotations
 
 import logging
-from html import escape
 from datetime import datetime, timezone
+from html import escape
 from typing import Any
 
 from backend.models.telemetry import TelemetryPayload

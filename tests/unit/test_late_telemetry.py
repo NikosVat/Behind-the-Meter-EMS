@@ -1,13 +1,13 @@
 """Late/replayed counters must not inflate energy or desynchronize costs."""
-from datetime import datetime, timedelta, timezone
 from concurrent.futures import ThreadPoolExecutor
+from datetime import datetime, timedelta, timezone
 from types import SimpleNamespace
 
 import pytest
 from fastapi.testclient import TestClient
 
-from backend.main import create_app
 from backend.database.sqlite_store import SQLiteStore
+from backend.main import create_app
 
 
 def reading(template, minute, kwh, device="esp32-ems-001"):

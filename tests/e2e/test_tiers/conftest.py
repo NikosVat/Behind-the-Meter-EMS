@@ -2,12 +2,10 @@
 Fixtures specifically for the e2e test tiers.
 """
 
-from datetime import datetime, timezone
 import pytest
 
 from tests.e2e.test_tiers.harness import (
     FacilityProfileConfig,
-    create_valid_telemetry_payload,
 )
 
 

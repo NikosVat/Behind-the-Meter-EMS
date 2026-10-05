@@ -1,6 +1,6 @@
 """Peak projections are snapshots, never accumulated or invoice evidence."""
-from types import SimpleNamespace
 from datetime import datetime, timezone
+from types import SimpleNamespace
 
 import pytest
 from fastapi.testclient import TestClient

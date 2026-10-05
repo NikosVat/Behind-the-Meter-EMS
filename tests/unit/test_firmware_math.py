@@ -11,10 +11,10 @@ Covers Milestone M4 verification:
 """
 
 import math
-from datetime import datetime, timezone
-import pytest
-from backend.models.telemetry import TelemetryPayload, PhaseReading
 
+import pytest
+
+from backend.models.telemetry import PhaseReading, TelemetryPayload
 
 # --- 1. SCT-013 BURDEN RESISTOR PHYSICS & DERIVATIONS ---
 

@@ -10,21 +10,17 @@ Exhaustively covers physical, mathematical, and temporal boundary conditions (>=
 """
 
 import math
-from datetime import datetime, timezone, timedelta
-import pytest
-from pydantic import ValidationError
+from datetime import datetime, timedelta, timezone
 
 from tests.e2e.test_tiers.harness import (
-    TelemetryPayload,
-    FacilityProfileConfig,
     AlertDispatcherStateMachine,
     AlertState,
+    TelemetryPayload,
+    calculate_realtime_cost,
+    calculate_regulated_unit_rate,
     create_valid_telemetry_payload,
     is_greek_peak_window,
-    calculate_regulated_unit_rate,
-    calculate_realtime_cost,
 )
-
 
 # --- Boundary 1: Zero & Extreme Power Factor ---
 

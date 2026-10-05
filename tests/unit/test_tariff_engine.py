@@ -10,7 +10,7 @@ Comprehensive verification covering:
 6. Real-Time Running Cost (€/h), Incremental Packet Cost, Projected Peak Surcharge, and Daily Spend Tracking.
 """
 
-from datetime import datetime, timezone
+from datetime import datetime
 from zoneinfo import ZoneInfo
 
 import pytest

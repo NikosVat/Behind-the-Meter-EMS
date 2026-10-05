@@ -10,9 +10,7 @@ Test scenarios:
 
 from __future__ import annotations
 
-import math
 from datetime import datetime, timezone
-from typing import Any
 
 import httpx
 import pytest
@@ -27,14 +25,12 @@ from backend.market.fetcher_henex import (
 )
 from backend.market.models import DamHourlyPrice, GreenTariffAnnouncement
 from backend.market.scraper_rae import (
-    normalize_supplier,
     parse_float_gr,
     parse_rae_html,
     parse_rae_json,
 )
 from backend.market.service import MarketPriceService
 from tariff_engine.cost_calculator import calculate_realtime_cost
-
 
 # --- Helper Mock Clients for Adversarial Testing ---
 

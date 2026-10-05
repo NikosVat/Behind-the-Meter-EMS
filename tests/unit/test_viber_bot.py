@@ -22,7 +22,6 @@ from bot.dispatcher import AlertDispatcher
 from bot.telegram_client import MockTelegramClient
 from bot.viber_client import LiveViberClient, MockViberClient
 
-
 # --- MockViberClient Tests ---
 
 @pytest.mark.anyio
@@ -88,7 +87,7 @@ async def test_live_viber_client_successful_send():
         )
         assert success is True
         mock_post.assert_called_once()
-        args, kwargs = mock_post.call_args
+        _args, kwargs = mock_post.call_args
         assert kwargs["headers"]["X-Viber-Auth-Token"] == "test_viber_token_123"
         payload = kwargs["json"]
         assert payload["receiver"] == "usr_abc"

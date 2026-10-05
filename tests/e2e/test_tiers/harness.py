@@ -8,13 +8,14 @@ Reference standards:
 """
 
 from __future__ import annotations
-import math
-from dataclasses import dataclass, field
-from datetime import datetime, time, timezone, timedelta
-from enum import Enum
-from typing import Dict, List, Optional, Any, Tuple
-from pydantic import BaseModel, Field, model_validator
 
+import math
+from dataclasses import dataclass
+from datetime import datetime, timedelta, timezone
+from enum import Enum
+from typing import Any
+
+from pydantic import BaseModel, Field, model_validator
 
 # --- 1. Physical & Telemetry Pydantic Models (Interface Contract 1) ---
 
@@ -40,7 +41,7 @@ class TelemetryPayload(BaseModel):
     device_id: str = Field(..., min_length=3, max_length=64)
     facility_id: str = Field(..., min_length=3, max_length=64)
     timestamp: datetime = Field(..., description="UTC timestamp of reading")
-    phases: Dict[str, PhaseReading] = Field(..., description="L1, L2, L3 phase readings")
+    phases: dict[str, PhaseReading] = Field(..., description="L1, L2, L3 phase readings")
     total_active_power_kw: float = Field(..., ge=0.0, le=225.0)
     total_apparent_power_kva: float = Field(..., ge=0.0, le=270.0)
     system_power_factor: float = Field(..., ge=-1.0, le=1.0)
@@ -78,7 +79,7 @@ def create_valid_telemetry_payload(
     p_total_kw: float = 17.90,
     pf: float = 0.98,
     voltage_v: float = 230.0,
-    timestamp: Optional[datetime] = None,
+    timestamp: datetime | None = None,
     cumulative_energy_kwh: float = 142.50,
 ) -> TelemetryPayload:
     """Helper factory creating physically consistent TelemetryPayload instances."""
@@ -182,7 +183,6 @@ def is_greek_peak_window(dt: datetime, season: str = "auto") -> bool:
         is_summer = (season.lower() == "summer")
 
     hour = dt.hour
-    minute = dt.minute
 
     if is_summer:
         # 14:00:00 to 16:59:59 is Peak
@@ -398,10 +398,10 @@ class AlertDispatcherStateMachine:
         self.state: AlertState = AlertState.IDLE
         self.debounce_counter: int = 0
         self.debounce_threshold: int = 3
-        self.last_alert_time: Optional[datetime] = None
+        self.last_alert_time: datetime | None = None
         self.last_alert_kw: float = 0.0
         self.cooldown_duration = timedelta(seconds=facility.cooldown_seconds)
-        self.history: List[AlertEvent] = []
+        self.history: list[AlertEvent] = []
 
     def process_reading(
         self,
@@ -410,7 +410,7 @@ class AlertDispatcherStateMachine:
         is_peak_window: bool,
         cost_res: CostCalculationResult,
         power_factor: float = 0.98,
-    ) -> Optional[AlertEvent]:
+    ) -> AlertEvent | None:
         threshold = self.facility.peak_threshold_kw
         is_above_threshold = (power_kw > threshold and is_peak_window)
         is_below_hysteresis = (power_kw <= 0.90 * threshold)
@@ -550,7 +550,7 @@ class MockTelegramClient:
     """Thread-safe in-memory Telegram client mock for deterministic E2E verification."""
 
     def __init__(self):
-        self.sent_messages: List[Dict[str, Any]] = []
+        self.sent_messages: list[dict[str, Any]] = []
 
     async def send_message(
         self,
@@ -566,10 +566,10 @@ class MockTelegramClient:
         })
         return True
 
-    def get_sent_messages(self) -> List[Dict[str, Any]]:
+    def get_sent_messages(self) -> list[dict[str, Any]]:
         return list(self.sent_messages)
 
-    def get_last_message(self) -> Optional[Dict[str, Any]]:
+    def get_last_message(self) -> dict[str, Any] | None:
         return self.sent_messages[-1] if self.sent_messages else None
 
     def clear(self) -> None:
@@ -582,7 +582,7 @@ class MockTelegramClient:
 def format_greek_bot_response(
     command: str,
     facility: FacilityProfileConfig,
-    latest_payload: Optional[TelemetryPayload] = None,
+    latest_payload: TelemetryPayload | None = None,
     daily_spend_eur: float = 48.60,
     daily_energy_kwh: float = 240.5,
 ) -> str:
@@ -666,7 +666,7 @@ def get_commercial_bakery_power(hour_float: float) -> float:
         # Afternoon prep surge in peak window!
         return 24.0 + 4.0 * math.sin((h - 14.0) * math.pi / 3.0)
     elif 17.0 <= h < 21.0:
-        return 8.0 + 1.5 * math.cos((h - 17.0))
+        return 8.0 + 1.5 * math.cos(h - 17.0)
     else:
         return 4.0
 
