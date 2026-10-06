@@ -25,9 +25,9 @@ bill and savings are measured with the IPMVP protocol.
 
 | # | Phase | Status | Commit | Verified by |
 |---|---|---|---|---|
-| 0 | Human prep + bootstrap | TODO | - | checklist |
-| 1 | Tooling, CI, trim | TODO | - | - |
-| 2 | Honesty, fail-closed auth | TODO | - | - |
+| 0 | Human prep + bootstrap | IN PROGRESS | - | code bootstrap done; human items Q6, Q7, Q8 open |
+| 1 | Tooling, CI, trim | DONE | 487bea6 | tools/check.py: ruff clean, 636 passed, mypy skipped (no billing_core yet) |
+| 2 | Honesty, fail-closed auth | DONE | - | - |
 | 3 | billing_core time and money | TODO | - | - |
 | 4 | billing_core rule book and cost | TODO | - | - |
 | 5 | Telemetry v0.2, 15-min energy | TODO | - | - |
@@ -39,11 +39,11 @@ bill and savings are measured with the IPMVP protocol.
 | 11 | Deploy and harden | TODO | - | - |
 | 12 | Shadow pilot report | TODO | - | - |
 
-## Current phase: 0
-- Goal: fork, bootstrap, interviews, one real bill, ENTSO-E token, bench meter.
-- Verification gate: every box in PHASES.md "## Phase 0" ticked; bootstrap commit pushed.
+## Current phase: 3
+- Goal: remove false claims, make auth fail closed (I2, I10, D11).
+- Verification gate: the Phase 2 gate in PHASES.md; tools/check.py green.
 - Status right now: not started.
-- Next action: fork on GitHub, clone, run bootstrap.
+- Next action: run the Phase 2 prompt from PHASES.md in a fresh Claude Code session; review and approve the plan.
 
 ## Decisions log (append-only)
 
@@ -89,7 +89,9 @@ bill and savings are measured with the IPMVP protocol.
   possible collaboration are a team decision. OPEN.
 
 ## Verification log
-(empty)
+- 2026-10-06: Phase 1 commit 487bea6 on origin/main. check.py: ruff clean, 636 passed. Test count 647 -> 636: breakdown PENDING. Ingestion test first-reading counter check: PENDING.
+- 2026-10-06: commit 65fd0fd (colleague, docs-only PDF + PNG) reviewed; no personal data.
+- 2026-10-06: Phase 2 041c4ae. check.py: ruff clean, 649 passed. 503 on all protected routes with no key in production. TRL claim removed. Law citations without a URL replaced with pointers to docs/RULES_SOURCES.md.
 
 ## How to resume (BRAIN_RESET: yes)
 1. Read this file, then CLAUDE.md, then the contract sections the next phase needs.
