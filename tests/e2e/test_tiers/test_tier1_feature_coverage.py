@@ -6,7 +6,7 @@ Exhaustively tests all 16 core EMS features (>= 5 test cases per feature = 80 to
 2. Γ21 commercial tariff (single-rate LV <= 25 kVA)
 3. Γ22 commercial tariff (dual-rate LV > 25 kVA, peak & off-peak)
 4. Γ23 commercial tariff (medium voltage > 250 kVA)
-5. Green tariff fluctuation mechanism (Law 5068/2023 / MD ΥΠΕΝ)
+5. Green tariff fluctuation mechanism (see docs/RULES_SOURCES.md)
 6. Yellow & Dynamic DAM spot pricing
 7. Regulated charges (DEDDIE, ADMIE, ETMEAR, YKO, EFK, DETE, 6% VAT)
 8. Capacity excess & power factor penalties
@@ -225,7 +225,7 @@ class TestFeature4TariffG23:
         assert res.running_cost_eur_per_h > 20.0
 
 
-# --- Feature 5: Green Tariff Formula (Law 5068/2023) ---
+# --- Feature 5: Green Tariff Formula (see docs/RULES_SOURCES.md) ---
 
 class TestFeature5GreenTariffFormula:
     def test_feature5_green_tariff_normal_band_no_fluctuation(self):

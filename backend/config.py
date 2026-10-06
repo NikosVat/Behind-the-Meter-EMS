@@ -25,6 +25,10 @@ class Settings(BaseModel):
     API_KEY: str | None = Field(
         default_factory=lambda: os.getenv("API_KEY", None)
     )
+    # Explicit opt-in for keyless access; honoured only when ENVIRONMENT == "development".
+    ALLOW_OPEN_DEV_ACCESS: bool = Field(
+        default_factory=lambda: os.getenv("ALLOW_OPEN_DEV_ACCESS", "false").lower() in ("true", "1", "yes")
+    )
     ALLOWED_ORIGINS: list[str] = Field(
         default_factory=lambda: [
             origin.strip()

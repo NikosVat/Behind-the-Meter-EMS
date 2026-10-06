@@ -3,7 +3,7 @@ Unit Test Suite for Greek Commercial Electricity Tariff & Real-Time Cost Engine.
 
 Comprehensive verification covering:
 1. Contracts (Γ21, Γ22, Γ23), Tariff Colors (Green, Yellow, Dynamic), and TOU Schedules.
-2. Green Tariff Fluctuation Mechanism (Law 5068/2023 / MD ΥΠΕΝ) and Supply Rates.
+2. Green Tariff Fluctuation Mechanism (see docs/RULES_SOURCES.md) and Supply Rates.
 3. Yellow & Dynamic Day-Ahead Market Spot Pricing.
 4. Regulated Network Charges (DEDDIE, ADMIE, ETMEAR, YKO, EFK, DETE, 6% VAT).
 5. Penalties: Power factor (cos φ < 0.85) multiplier and Contracted Capacity Excess.
@@ -199,7 +199,7 @@ class TestContractsAndTOU:
         assert get_remaining_peak_hours(dt_weekend) == 0.0
 
 
-# --- 2. Green Tariff Fluctuation Mechanism (Law 5068/2023) ---
+# --- 2. Green Tariff Fluctuation Mechanism (see docs/RULES_SOURCES.md) ---
 
 class TestGreenTariff:
     def test_normal_band_no_fluctuation(self):

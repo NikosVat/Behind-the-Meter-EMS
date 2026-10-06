@@ -239,7 +239,7 @@ class PyRtcTimekeeper:
 
     @staticmethod
     def get_greek_timezone_offset_hours(epoch: int) -> int:
-        """Dynamic Greek timezone offset per EU Directive 2000/84/EC (UTC+2 EET / UTC+3 EEST)."""
+        """Dynamic Greek timezone offset (UTC+2 EET / UTC+3 EEST); see docs/RULES_SOURCES.md."""
         dt_utc = datetime.fromtimestamp(epoch, tz=timezone.utc)
         month = dt_utc.month
         day = dt_utc.day
@@ -698,7 +698,7 @@ class TestHardwareRtcAndOfflineTimekeeping:
         assert calendar_to_epoch(2024, 3, 1, 0, 0, 0) == int(dt_mar.timestamp())
 
     def test_greek_dst_dynamic_transitions(self):
-        """Verify dynamic Greek timezone transitions (EET UTC+2 <-> EEST UTC+3) per EU Directive 2000/84/EC."""
+        """Verify dynamic Greek timezone transitions (EET UTC+2 <-> EEST UTC+3); see docs/RULES_SOURCES.md."""
         # 2026: Last Sunday of March is March 29.
         # Before 01:00 UTC -> EET (+2)
         dt_before_dst = datetime(2026, 3, 29, 0, 59, 59, tzinfo=timezone.utc)

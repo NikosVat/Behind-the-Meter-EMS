@@ -8,11 +8,31 @@ from backend.security import verify_api_key
 
 
 @pytest.mark.anyio
-async def test_verify_api_key_when_no_key_configured(monkeypatch):
-    """When API_KEY is None, access is granted without checking header."""
+async def test_verify_api_key_open_only_with_explicit_dev_opt_in(monkeypatch):
+    """No API_KEY: access is open only in development with ALLOW_OPEN_DEV_ACCESS."""
     monkeypatch.setattr(settings, "API_KEY", None)
+    monkeypatch.setattr(settings, "ENVIRONMENT", "development")
+    monkeypatch.setattr(settings, "ALLOW_OPEN_DEV_ACCESS", True)
     assert await verify_api_key(None) is True
-    assert await verify_api_key("some_arbitrary_key") is True
+
+
+@pytest.mark.anyio
+@pytest.mark.parametrize("environment,allow_open", [
+    ("production", False),
+    ("production", True),
+    ("development", False),
+    ("staging", True),
+])
+async def test_verify_api_key_fails_closed_without_key(monkeypatch, environment, allow_open):
+    """No API_KEY and no valid dev opt-in: raises 503, whatever header is sent."""
+    monkeypatch.setattr(settings, "API_KEY", "")
+    monkeypatch.setattr(settings, "ENVIRONMENT", environment)
+    monkeypatch.setattr(settings, "ALLOW_OPEN_DEV_ACCESS", allow_open)
+    for header in (None, "some_arbitrary_key"):
+        with pytest.raises(HTTPException) as exc_info:
+            await verify_api_key(header)
+        assert exc_info.value.status_code == 503
+        assert exc_info.value.detail == "API key not configured"
 
 
 @pytest.mark.anyio

@@ -2,7 +2,7 @@
 
 Covers:
 - RAE monthly Green Tariff HTML/JSON parser and supplier normalization
-- Law 5068/2023 Ministerial Decision fluctuation mechanism cross-validation
+- Green tariff MD fluctuation mechanism cross-validation
 - HEnEx Day-Ahead Market 24-hour hourly clearing price parsing (CSV and JSON)
 - Daylight Saving Time (DST) transitions (23h March, 25h October)
 - Price sanity boundary checks (-500.0 to 3000.0 €/MWh)
@@ -150,8 +150,8 @@ class TestRaeScraperAndParser:
         assert tariffs[0].contract_type == "G21"
         assert tariffs[0].published_final_rate_eur_per_kwh == 0.14075
 
-    def test_verify_green_tariff_formula_passes_law_5068(self):
-        # Law 5068/2023 MD: 120 > 115 => MD = 1.15 * (0.120 - 0.115) = 0.00575 €/kWh
+    def test_verify_green_tariff_formula_passes(self):
+        # Green tariff MD: 120 > 115 => MD = 1.15 * (0.120 - 0.115) = 0.00575 €/kWh
         # Final = 0.155 - 0.020 + 0.00575 = 0.14075 €/kWh
         announcement = GreenTariffAnnouncement(
             month="2026-09",

@@ -1,7 +1,7 @@
 """
 Market Adapters Package.
 
-Provides the Greek market adapter (GR / HEnEx / RAAEY / Law 5068/2023).
+Provides the Greek market adapter (GR / HEnEx / RAAEY).
 """
 
 from __future__ import annotations

@@ -3,7 +3,7 @@ Unit Test Suite for European Market Adapters (Requirement R4).
 
 Validates:
 1. BaseMarketAdapter abstract interface and data structures.
-2. GreekMarketAdapter (GR / HEnEx / Law 5068/2023 / DEDDIE / ADMIE).
+2. GreekMarketAdapter (GR / HEnEx / DEDDIE / ADMIE).
 3. MarketAdapterRegistry dynamic registration, aliasing, and error handling.
 4. Optimization Engine C_t vector compatibility with SciPy HiGHS MILP solver.
 """

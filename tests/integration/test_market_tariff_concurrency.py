@@ -1,7 +1,7 @@
 """Stress and concurrency test harness for live market tariff ingestion.
 
 Validates:
-1. Law 5068/2023 Green Tariff Fluctuation Mechanism correctness across all TEA zones:
+1. Green Tariff Fluctuation Mechanism correctness across all TEA zones:
    - Zone 1: TEA < Ll (lower rebate/discount)
    - Zone 2: Ll <= TEA <= Lu (deadband neutral window)
    - Zone 3: TEA > Lu (upper surcharge)
@@ -38,10 +38,10 @@ from tariff_engine.green_tariff import (
     calculate_green_tariff_supply_rate,
 )
 
-# --- 1. LAW 5068/2023 TARIFF FORMULA ADVERSARIAL CHALLENGES ---
+# --- 1. GREEN TARIFF FORMULA ADVERSARIAL CHALLENGES ---
 
-class TestLaw5068TariffFormulaCorrectness:
-    """Empirically validates compliance of green tariff calculations with Law 5068/2023."""
+class TestGreenTariffFormulaCorrectness:
+    """Empirically validates green tariff calculations against the MD formula (see docs/RULES_SOURCES.md)."""
 
     @pytest.mark.parametrize(
         "tea,ll,lu,alpha,expected_md",

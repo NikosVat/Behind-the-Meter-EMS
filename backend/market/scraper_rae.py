@@ -1,7 +1,7 @@
 """RAE / energycost.gr monthly Special Green Tariff (Ειδικό Τιμολόγιο) scraper.
 
 Automates the ingestion, parsing, and legal formula validation of monthly Green Tariff
-announcements mandated by Greek Law 5068/2023 and Ministerial Decision ΥΠΕΝ/ΔΗΕ/120637/2107.
+announcements mandated by the special (green) tariff rules; see docs/RULES_SOURCES.md.
 """
 
 from __future__ import annotations
@@ -81,7 +81,7 @@ def verify_green_tariff_formula(
     tariff: GreenTariffAnnouncement,
     tolerance_eur_kwh: float = 0.005,
 ) -> tuple[bool, float, float]:
-    """Cross-validate published rate against Law 5068/2023 Ministerial Decision formula.
+    """Cross-validate published rate against the green tariff MD formula (see docs/RULES_SOURCES.md).
 
     Returns:
         tuple[is_valid, calculated_rate_eur_kwh, discrepancy_eur_kwh]

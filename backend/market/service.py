@@ -184,7 +184,7 @@ class MarketPriceService:
         return results
 
     def _get_l4_green_tariffs(self, target_month: str) -> list[GreenTariffAnnouncement]:
-        """Deterministic algorithmic defaults matching Law 5068/2023 with TEA = 120.0."""
+        """Deterministic algorithmic defaults for the green tariff formula with TEA = 120.0."""
         return [
             GreenTariffAnnouncement(
                 month=target_month,
@@ -460,7 +460,7 @@ class MarketPriceService:
         return l4_tariffs
 
     async def refresh_green_tariffs(self, month: str | None = None) -> list[GreenTariffAnnouncement]:
-        """Force refresh of Green Tariffs from remote client, validating Law 5068/2023 formulas."""
+        """Force refresh of Green Tariffs from remote client, validating the green tariff formula."""
         target_month = month or datetime.now(timezone.utc).strftime("%Y-%m")
         try:
             tariffs = await self.client.fetch_green_tariffs(target_month)

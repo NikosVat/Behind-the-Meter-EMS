@@ -17,7 +17,7 @@ def secured_client(tmp_path, monkeypatch):
         yield client
 
 
-@pytest.mark.parametrize("method,path,body", [
+SENSITIVE_ROUTES = pytest.mark.parametrize("method,path,body", [
     ("GET", "/api/v1/facilities", None),
     ("POST", "/api/v1/telemetry", {}),
     ("GET", "/api/v1/market/dam/today", None),
@@ -28,10 +28,26 @@ def secured_client(tmp_path, monkeypatch):
     ("POST", "/api/v1/viber/send", {"receiver_id": "person", "text": "test"}),
     ("GET", "/api/v1/facilities/bakery-central-athens/assets", None),
 ])
+
+
+@SENSITIVE_ROUTES
 @pytest.mark.parametrize("headers", [{}, {"X-API-Key": "wrong"}])
 def test_mounted_sensitive_routes_reject_missing_or_wrong_key(secured_client, method, path, body, headers):
     response = secured_client.request(method, path, json=body, headers=headers)
     assert response.status_code == 401, response.text
+
+
+@SENSITIVE_ROUTES
+def test_protected_routes_fail_closed_when_api_key_unset_in_production(
+    secured_client, monkeypatch, method, path, body
+):
+    # Startup refuses production without API_KEY, so unset it after the app is up.
+    monkeypatch.setattr(settings, "ENVIRONMENT", "production")
+    monkeypatch.setattr(settings, "API_KEY", None)
+    for headers in ({}, {"X-API-Key": "competition-secret"}):
+        response = secured_client.request(method, path, json=body, headers=headers)
+        assert response.status_code == 503, response.text
+        assert response.json()["detail"] == "API key not configured"
 
 
 def test_correct_key_and_public_health_and_dashboard_shell(secured_client):

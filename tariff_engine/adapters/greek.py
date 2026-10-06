@@ -51,7 +51,7 @@ class GreekMarketAdapter(BaseMarketAdapter):
             wholesale_market="HEnEx",
             supports_dynamic_dam=True,
             supports_periodic_billing=True,
-            notes="Governed by RAAEY tariff regulations and Greek Law 5068/2023.",
+            notes="Governed by RAAEY tariff regulations; see docs/RULES_SOURCES.md.",
         )
 
     def get_market_metadata(self) -> MarketMetadata:

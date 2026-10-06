@@ -46,7 +46,7 @@ class GreenTariffAnnouncement(BaseModel):
     p_base: float = Field(..., description="Base supply energy rate P_base in €/kWh")
     e_disc: float = Field(0.0, description="Prompt payment discount rate E_disc in €/kWh")
     prompt_discount_percent: float = Field(0.0, description="Prompt payment discount percentage (%)")
-    alpha: float = Field(1.15, description="Fluctuation mechanism multiplier α (Law 5068/2023)")
+    alpha: float = Field(1.15, description="Fluctuation mechanism multiplier α (see docs/RULES_SOURCES.md)")
     lu_eur_mwh: float = Field(115.0, description="Upper price tolerance threshold Lu in €/MWh")
     ll_eur_mwh: float = Field(95.0, description="Lower price tolerance threshold Ll in €/MWh")
     beta: float = Field(0.0, description="Historical shift factor β in €/kWh")

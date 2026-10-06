@@ -6,6 +6,7 @@ from typing import Any
 
 import pytest
 
+from backend.config import settings
 from backend.models.alert import (
     AlertEvent,
     AlertSeverity,
@@ -16,6 +17,13 @@ from backend.models.telemetry import (
     TelemetryPayload,
 )
 from bot.telegram_client import MockTelegramClient
+
+
+@pytest.fixture(autouse=True)
+def _open_dev_access(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Keyless suites run in explicit open-dev mode; auth tests override these settings."""
+    monkeypatch.setattr(settings, "ENVIRONMENT", "development")
+    monkeypatch.setattr(settings, "ALLOW_OPEN_DEV_ACCESS", True)
 
 
 @pytest.fixture

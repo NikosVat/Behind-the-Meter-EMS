@@ -31,7 +31,7 @@ class TestTier3CrossFeatureCombinations:
     def test_cross_green_tariff_peak_window_with_low_cos_phi(self, sample_facility_bakery):
         """
         Combination 1:
-        Green Tariff (Law 5068/2023) + Active Summer Peak Window + Poor Power Factor (cos phi = 0.72).
+        Green Tariff (see docs/RULES_SOURCES.md) + Active Summer Peak Window + Poor Power Factor (cos phi = 0.72).
         Verifies:
         - Fluctuation mechanism adds surcharge for TEA = 140 €/MWh (> Lu = 115).
         - G22 dual-rate adds peak window (+25%) modifier.

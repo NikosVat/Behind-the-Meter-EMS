@@ -2,7 +2,7 @@
 Greek Green Electricity Tariff (Ειδικό Τιμολόγιο) Calculation Engine.
 
 Implements the official Fluctuation Mechanism (Μηχανισμός Διακύμανσης - MD)
-pursuant to Greek Law 5068/2023 and Ministerial Decision ΥΠΕΝ/ΔΗΕ/120637/2107.
+pursuant to the special (green) tariff rules; see docs/RULES_SOURCES.md.
 
 Fluctuation Mechanism Formulas:
 - MD = α * (TEA_{M-1} - Lu) + β    if TEA_{M-1} > Lu
@@ -36,7 +36,7 @@ def calculate_green_tariff_fluctuation(
     unit: PriceUnit = "EUR_MWH",
 ) -> float:
     """
-    Computes Green Tariff Fluctuation Mechanism MD(M) per Law 5068/2023 & MD ΥΠΕΝ.
+    Computes Green Tariff Fluctuation Mechanism MD(M) (see docs/RULES_SOURCES.md).
 
     Args:
         tea_eur_mwh: Mean Day-Ahead Market Clearing Price of month M-1 (€/MWh or €/kWh).

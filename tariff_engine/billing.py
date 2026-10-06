@@ -3,7 +3,7 @@ Periodic Utility Billing Engine for Greek Commercial Electricity Customers.
 
 Implements statutory billing calculations for:
 - Contracts: Γ21 (LV single-rate <= 25 kVA), Γ22 (LV dual-rate > 25 kVA), Γ23 (MV > 250 kVA).
-- Retail Tariff Color Schemes: Green (Law 5068/2023 MD formula), Yellow (DAM wholesale indexed),
+- Retail Tariff Color Schemes: Green (MD formula, see docs/RULES_SOURCES.md), Yellow (DAM wholesale indexed),
   Dynamic (direct hourly/weighted spot).
 - Regulated Network Charges: ADMIE transmission, DEDDIE distribution, low power factor penalties
   (cos φ < 0.85), contracted capacity excess breaches.
@@ -98,7 +98,7 @@ class UtilityBillInput:
     prompt_discount_percent: float = 0.0
     fixed_monthly_fee_eur: float = 5.0
 
-    # Green Tariff Fluctuation Mechanism (Law 5068/2023)
+    # Green Tariff Fluctuation Mechanism (see docs/RULES_SOURCES.md)
     wholesale_tea_m1_eur_mwh: float = 115.0
     wholesale_tea_m2_eur_mwh: float | None = None
     green_lu_eur_mwh: float = 115.0
@@ -255,7 +255,7 @@ def calculate_periodic_bill(bill_input: UtilityBillInput) -> UtilityBill:
         )
     )
 
-    # C. Green Fluctuation Mechanism (MD Law 5068/2023)
+    # C. Green Fluctuation Mechanism (MD; see docs/RULES_SOURCES.md)
     if bill_input.tariff_color == TariffColor.GREEN:
         md = calculate_green_tariff_fluctuation(
             tea_eur_mwh=bill_input.wholesale_tea_m1_eur_mwh,
@@ -273,7 +273,7 @@ def calculate_periodic_bill(bill_input: UtilityBillInput) -> UtilityBill:
     line_items.append(
         UtilityBillLineItem(
             code="SUPPLY_MD",
-            description="Green Fluctuation Mechanism (MD Law 5068/2023)",
+            description="Green Fluctuation Mechanism (MD; see docs/RULES_SOURCES.md)",
             category=LineItemCategory.SUPPLY,
             quantity=kwh,
             unit="kWh",

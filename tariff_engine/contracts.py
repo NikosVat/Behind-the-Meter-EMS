@@ -50,7 +50,7 @@ class TariffContract(str, Enum):
 class TariffColor(str, Enum):
     """
     Greek retail electricity pricing color coding:
-    - GREEN: Special standardized monthly tariff with Fluctuation Mechanism (MD) per Law 5068/2023.
+    - GREEN: Special standardized monthly tariff with Fluctuation Mechanism (MD) (see docs/RULES_SOURCES.md).
     - YELLOW: Variable tariff indexed to wholesale Day-Ahead Market.
     - DYNAMIC: Orange/dynamic hourly spot tariff indexed to HEnEx Day-Ahead Market clearing price.
     """

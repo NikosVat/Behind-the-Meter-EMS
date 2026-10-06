@@ -3,7 +3,7 @@ Test harness, validation models, and reference calculation oracles for
 Greek Commercial Behind-the-Meter EMS E2E test suites.
 
 Reference standards:
-- Greek Law 5068/2023 & Ministerial Decision (ΥΠΕΝ) Green Tariff Regulation
+- Green tariff regulation (see docs/RULES_SOURCES.md)
 - DEDDIE / ADMIE Commercial Tariff Schedules (Γ21, Γ22, Γ23)
 """
 
@@ -211,7 +211,7 @@ def calculate_green_tariff_fluctuation(
     beta: float = 0.0,
 ) -> float:
     """
-    Computes Green Tariff Fluctuation Mechanism MD(M) per Law 5068/2023 & MD ΥΠΕΝ.
+    Computes Green Tariff Fluctuation Mechanism MD(M) (see docs/RULES_SOURCES.md).
     Returns fluctuation MD in €/kWh.
     """
     tea_kwh = tea_eur_mwh / 1000.0

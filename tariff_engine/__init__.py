@@ -3,7 +3,7 @@ Greek Electricity Tariff & Real-Time Cost Engine.
 
 Deterministic modeling for:
 - Contracts: Γ21 (LV <= 25 kVA), Γ22 (LV dual-rate > 25 kVA), Γ23 (MV > 250 kVA).
-- Retail Tariff Types: Green (Law 5068/2023 MD Formula), Yellow, Dynamic (HEnEx DAM spot).
+- Retail Tariff Types: Green (MD formula, see docs/RULES_SOURCES.md), Yellow, Dynamic (HEnEx DAM spot).
 - Regulated Charges: DEDDIE, ADMIE, ETMEAR, YKO, EFK, DETE, 6% VAT.
 - Penalties: Low power factor (cos φ < 0.85), Contracted capacity excess.
 - Metrics: Instantaneous €/h, incremental packet €, daily spend accumulator, projected peak breach surcharge.
